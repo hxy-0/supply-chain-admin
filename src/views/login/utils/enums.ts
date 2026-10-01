@@ -1,33 +1,30 @@
 import { $t } from "@/plugins/i18n";
 
 const operates = [
-  {
-    title: $t("login.purePhoneLogin")
-  },
-  {
-    title: $t("login.pureQRCodeLogin")
-  },
-  {
-    title: $t("login.pureRegister")
-  }
+  { title: $t("login.pureCodeLogin"), page: 1 },
+  { title: $t("login.pureRegister"), page: 3 }
 ];
 
 const thirdParty = [
   {
     title: $t("login.pureWeChatLogin"),
-    icon: "wechat"
+    icon: "wechat",
+    color: "#07C160"
   },
   {
     title: $t("login.pureAlipayLogin"),
-    icon: "alipay"
+    icon: "alipay",
+    color: "#1677FF"
   },
   {
     title: $t("login.pureQQLogin"),
-    icon: "qq"
+    icon: "qq",
+    color: "#12B7F5"
   },
   {
-    title: $t("login.pureWeiBoLogin"),
-    icon: "weibo"
+    title: $t("login.pureGitHubLogin"),
+    icon: "github",
+    color: "#181717"
   }
 ];
 

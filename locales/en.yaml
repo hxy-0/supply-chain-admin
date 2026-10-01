@@ -204,6 +204,13 @@ status:
   pureNoNotify: No Notify
   pureNoTodo: No Todo
 login:
+  pureAccount: Phone number or email
+  pureAccountReg: Enter a valid phone number or email
+  pureCodeLogin: Verification code
+  purePasswordLength: Password must be at least 8 characters and no more than 72 bytes
+  pureCodeSent: Verification code sent
+  pureResetSuccess: Password updated. Please sign in again
+  pureProviderPending: This sign-in provider is not available yet
   pureUsername: Username
   purePassword: Password
   pureVerifyCode: VerifyCode
@@ -219,7 +226,7 @@ login:
   pureWeChatLogin: WeChat Login
   pureAlipayLogin: Alipay Login
   pureQQLogin: QQ Login
-  pureWeiBoLogin: Weibo Login
+  pureGitHubLogin: GitHub Login
   purePhone: Phone
   pureSmsVerifyCode: SMS VerifyCode
   pureBack: Back

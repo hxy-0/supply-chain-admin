@@ -1,26 +1,20 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import Motion from "./utils/motion";
-import { useRouter } from "vue-router";
+import { consumeGithubCallback } from "@/oauth/githubCallback";
+import { authRequest, completeLogin } from "./utils/authentication";
 import { message } from "@/utils/message";
 import { loginRules } from "./utils/rule";
 import TypeIt from "@/components/ReTypeit";
 import { debounce } from "@pureadmin/utils";
 import { useNav } from "@/layout/hooks/useNav";
-import { useEventListener } from "@vueuse/core";
 import type { FormInstance } from "element-plus";
-import { $t, transformI18n } from "@/plugins/i18n";
 import { operates, thirdParty } from "./utils/enums";
 import { useLayout } from "@/layout/hooks/useLayout";
-import LoginPhone from "./components/LoginPhone.vue";
-import LoginRegist from "./components/LoginRegist.vue";
-import LoginUpdate from "./components/LoginUpdate.vue";
-import LoginQrCode from "./components/LoginQrCode.vue";
 import { useUserStoreHook } from "@/store/modules/user";
-import { initRouter, getTopMenu } from "@/router/utils";
-import { bg, avatar, illustration } from "./utils/static";
-import { ReImageVerify } from "@/components/ReImageVerify";
-import { ref, toRaw, reactive, watch, computed } from "vue";
+import { ref, reactive, watch, computed, onMounted } from "vue";
+import LoginVerification from "./components/LoginVerification.vue";
+import Github from "~icons/ri/github-fill";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useTranslationLang } from "@/layout/hooks/useTranslationLang";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
@@ -32,15 +26,19 @@ import Lock from "~icons/ri/lock-fill";
 import Check from "~icons/ep/check";
 import User from "~icons/ri/user-3-fill";
 import Info from "~icons/ri/information-line";
-import Keyhole from "~icons/ri/shield-keyhole-line";
 
 defineOptions({
   name: "Login"
 });
 
-const imgCode = ref("");
+const loginVideo = `${import.meta.env.BASE_URL}media/city-logistics-login.mp4`;
+const thirdPartyLogos: Record<string, string> = {
+  qq: `${import.meta.env.BASE_URL}media/qq.svg`,
+  wechat: `${import.meta.env.BASE_URL}media/wechat.svg`,
+  alipay: `${import.meta.env.BASE_URL}media/alipay.svg`
+};
+const loginLogo = `${import.meta.env.BASE_URL}media/supply-chain-logo.png`;
 const loginDay = ref(7);
-const router = useRouter();
 const loading = ref(false);
 const checked = ref(false);
 const disabled = ref(false);
@@ -58,58 +56,78 @@ const { title, getDropdownItemStyle, getDropdownItemClass } = useNav();
 const { locale, translationCh, translationEn } = useTranslationLang();
 
 const ruleForm = reactive({
-  username: "admin",
-  password: "admin123",
-  verifyCode: ""
+  username: "",
+  password: ""
 });
 
 const onLogin = async (formEl: FormInstance | undefined) => {
-  if (!formEl) return;
-  await formEl.validate(valid => {
-    if (valid) {
-      loading.value = true;
-      useUserStoreHook()
-        .loginByUsername({
-          username: ruleForm.username,
-          password: ruleForm.password
-        })
-        .then(async () => {
-          // 获取后端路由
-          await initRouter();
-          disabled.value = true;
-          router.push(getTopMenu(true).path).then(() => {
-            message(t("login.pureLoginSuccess"), { type: "success" });
-          });
-        })
-        .catch(_err => {
-          message(t("login.pureLoginFail"), { type: "error" });
-        })
-        .finally(() => {
-          disabled.value = false;
-          loading.value = false;
-        });
-    }
-  });
+  if (loading.value || !(await formEl?.validate().catch(() => false))) return;
+  loading.value = true;
+  try {
+    const store = useUserStoreHook();
+    await completeLogin(
+      await authRequest("/login", {
+        username: ruleForm.username,
+        password: ruleForm.password,
+        rememberDays: checked.value ? store.loginDay : 1
+      })
+    );
+  } catch (error) {
+    message(error.message, { type: "error" });
+  } finally {
+    loading.value = false;
+  }
 };
-
-const immediateDebounce: any = debounce(
-  formRef => onLogin(formRef),
+const immediateDebounce = debounce(
+  () => onLogin(ruleFormRef.value),
   1000,
   true
 );
-
-useEventListener(document, "keydown", ({ code }) => {
-  if (
-    ["Enter", "NumpadEnter"].includes(code) &&
-    !disabled.value &&
-    !loading.value
-  )
-    immediateDebounce(ruleFormRef.value);
+async function thirdLogin(provider: string) {
+  if (provider !== "github") {
+    message(t("login.pureProviderPending"), { type: "info" });
+    return;
+  }
+  if (loading.value) {
+    return;
+  }
+  loading.value = true;
+  try {
+    const result = await authRequest<{ authorizationUrl: string }>(
+      "/github/authorize"
+    );
+    window.location.assign(result.authorizationUrl);
+  } catch (error) {
+    message(error.message, { type: "error" });
+    loading.value = false;
+  }
+}
+onMounted(async () => {
+  const callback = consumeGithubCallback();
+  if (!callback) {
+    return;
+  }
+  loading.value = true;
+  try {
+    if (callback.error) {
+      throw new Error("GitHub 授权已取消或失败，请重试");
+    }
+    if (!callback.code || !callback.state) {
+      throw new Error("GitHub 授权回调无效，请重新登录");
+    }
+    await completeLogin(
+      await authRequest("/github/callback", {
+        code: callback.code,
+        state: callback.state
+      })
+    );
+  } catch (error) {
+    message(error.message, { type: "error" });
+  } finally {
+    loading.value = false;
+  }
 });
 
-watch(imgCode, value => {
-  useUserStoreHook().SET_VERIFYCODE(value);
-});
 watch(checked, bool => {
   useUserStoreHook().SET_ISREMEMBERED(bool);
 });
@@ -119,8 +137,17 @@ watch(loginDay, value => {
 </script>
 
 <template>
-  <div class="select-none">
-    <img :src="bg" class="wave" />
+  <div class="select-none login-page">
+    <video
+      class="login-background-video"
+      :src="loginVideo"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="metadata"
+      aria-label="供应链场景动画"
+    />
     <div class="flex-c absolute right-5 top-3">
       <!-- 主题 -->
       <el-switch
@@ -164,12 +191,9 @@ watch(loginDay, value => {
       </el-dropdown>
     </div>
     <div class="login-container">
-      <div class="img">
-        <component :is="toRaw(illustration)" />
-      </div>
       <div class="login-box">
         <div class="login-form">
-          <avatar class="avatar" />
+          <img :src="loginLogo" class="avatar" alt="供应链 Logo" />
           <Motion>
             <h2 class="outline-hidden">
               <TypeIt
@@ -184,22 +208,15 @@ watch(loginDay, value => {
             :model="ruleForm"
             :rules="loginRules"
             size="large"
+            @submit.prevent="immediateDebounce"
           >
             <Motion :delay="100">
-              <el-form-item
-                :rules="[
-                  {
-                    required: true,
-                    message: transformI18n($t('login.pureUsernameReg')),
-                    trigger: 'blur'
-                  }
-                ]"
-                prop="username"
-              >
+              <el-form-item prop="username">
                 <el-input
                   v-model="ruleForm.username"
                   clearable
-                  :placeholder="t('login.pureUsername')"
+                  :placeholder="t('login.pureAccount')"
+                  autocomplete="username"
                   :prefix-icon="useRenderIcon(User)"
                 />
               </el-form-item>
@@ -211,24 +228,10 @@ watch(loginDay, value => {
                   v-model="ruleForm.password"
                   clearable
                   show-password
+                  autocomplete="current-password"
                   :placeholder="t('login.purePassword')"
                   :prefix-icon="useRenderIcon(Lock)"
                 />
-              </el-form-item>
-            </Motion>
-
-            <Motion :delay="200">
-              <el-form-item prop="verifyCode">
-                <el-input
-                  v-model="ruleForm.verifyCode"
-                  clearable
-                  :placeholder="t('login.pureVerifyCode')"
-                  :prefix-icon="useRenderIcon(Keyhole)"
-                >
-                  <template v-slot:append>
-                    <ReImageVerify v-model:code="imgCode" />
-                  </template>
-                </el-input>
               </el-form-item>
             </Motion>
 
@@ -276,7 +279,7 @@ watch(loginDay, value => {
                   type="primary"
                   :loading="loading"
                   :disabled="disabled"
-                  @click="onLogin(ruleFormRef)"
+                  native-type="submit"
                 >
                   {{ t("login.pureLogin") }}
                 </el-button>
@@ -291,7 +294,7 @@ watch(loginDay, value => {
                     :key="index"
                     class="w-full mt-4!"
                     size="default"
-                    @click="useUserStoreHook().SET_CURRENTPAGE(index + 1)"
+                    @click="useUserStoreHook().SET_CURRENTPAGE(item.page)"
                   >
                     {{ t(item.title) }}
                   </el-button>
@@ -308,42 +311,44 @@ watch(loginDay, value => {
                 </p>
               </el-divider>
               <div class="w-full flex justify-evenly">
-                <span
+                <button
                   v-for="(item, index) in thirdParty"
                   :key="index"
                   :title="t(item.title)"
+                  :aria-label="t(item.title)"
+                  type="button"
+                  class="cursor-pointer transition-opacity hover:opacity-75"
+                  @click="thirdLogin(item.icon)"
                 >
+                  <Github
+                    v-if="item.icon === 'github'"
+                    width="22"
+                    height="22"
+                  />
                   <IconifyIconOnline
+                    v-else-if="!thirdPartyLogos[item.icon]"
                     :icon="`ri:${item.icon}-fill`"
                     width="20"
-                    class="cursor-pointer text-gray-500 hover:text-blue-400"
+                    :style="{ color: item.color }"
+                    class="cursor-pointer transition-opacity hover:opacity-75"
                   />
-                </span>
+                  <img
+                    v-else
+                    :src="thirdPartyLogos[item.icon]"
+                    :alt="t(item.title)"
+                    width="22"
+                    height="22"
+                    class="cursor-pointer transition-opacity hover:opacity-75"
+                  />
+                </button>
               </div>
             </el-form-item>
           </Motion>
-          <!-- 手机号登录 -->
-          <LoginPhone v-if="currentPage === 1" />
-          <!-- 二维码登录 -->
-          <LoginQrCode v-if="currentPage === 2" />
-          <!-- 注册 -->
-          <LoginRegist v-if="currentPage === 3" />
-          <!-- 忘记密码 -->
-          <LoginUpdate v-if="currentPage === 4" />
+          <LoginVerification v-if="currentPage === 1" mode="login" />
+          <LoginVerification v-if="currentPage === 3" mode="register" />
+          <LoginVerification v-if="currentPage === 4" mode="reset" />
         </div>
       </div>
-    </div>
-    <div
-      class="w-full flex-c absolute bottom-3 text-sm text-[rgba(0,0,0,0.6)] dark:text-[rgba(220,220,242,0.8)]"
-    >
-      Copyright © 2020-present
-      <a
-        class="hover:text-primary!"
-        href="https://github.com/pure-admin"
-        target="_blank"
-      >
-        &nbsp;{{ title }}
-      </a>
     </div>
   </div>
 </template>

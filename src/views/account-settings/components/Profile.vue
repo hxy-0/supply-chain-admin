@@ -22,34 +22,13 @@ const userInfoFormRef = ref<FormInstance>();
 const userInfos = reactive({
   avatar: "",
   nickname: "",
-  email: "",
-  phone: "",
+  username: "",
   description: ""
 });
 
 const rules = reactive<FormRules<UserInfo>>({
   nickname: [{ required: true, message: "昵称必填", trigger: "blur" }]
 });
-
-function queryEmail(queryString, callback) {
-  const emailList = [
-    { value: "@qq.com" },
-    { value: "@126.com" },
-    { value: "@163.com" }
-  ];
-  let results = [];
-  let queryList = [];
-  emailList.map(item =>
-    queryList.push({ value: queryString.split("@")[0] + item.value })
-  );
-  results = queryString
-    ? queryList.filter(
-        item =>
-          item.value.toLowerCase().indexOf(queryString.toLowerCase()) === 0
-      )
-    : queryList;
-  callback(results);
-}
 
 const onChange = uploadFile => {
   const reader = new FileReader();
@@ -135,22 +114,8 @@ onMounted(async () => {
       <el-form-item label="昵称" prop="nickname">
         <el-input v-model="userInfos.nickname" placeholder="请输入昵称" />
       </el-form-item>
-      <el-form-item label="邮箱" prop="email">
-        <el-autocomplete
-          v-model="userInfos.email"
-          :fetch-suggestions="queryEmail"
-          :trigger-on-focus="false"
-          placeholder="请输入邮箱"
-          clearable
-          class="w-full"
-        />
-      </el-form-item>
-      <el-form-item label="联系电话">
-        <el-input
-          v-model="userInfos.phone"
-          placeholder="请输入联系电话"
-          clearable
-        />
+      <el-form-item label="账号（手机号或邮箱）" prop="username">
+        <el-input v-model="userInfos.username" readonly />
       </el-form-item>
       <el-form-item label="简介">
         <el-input

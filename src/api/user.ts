@@ -18,8 +18,8 @@ export type UserResult = {
     accessToken: string;
     /** 用于调用刷新`accessToken`的接口时所需的`token` */
     refreshToken: string;
-    /** `accessToken`的过期时间（格式'xxxx/xx/xx xx:xx:xx'） */
-    expires: Date;
+    /** `accessToken`到期时间，毫秒时间戳 */
+    expires: number;
   };
 };
 
@@ -31,8 +31,8 @@ export type RefreshTokenResult = {
     accessToken: string;
     /** 用于调用刷新`accessToken`的接口时所需的`token` */
     refreshToken: string;
-    /** `accessToken`的过期时间（格式'xxxx/xx/xx xx:xx:xx'） */
-    expires: Date;
+    /** `accessToken`到期时间，毫秒时间戳 */
+    expires: number;
   };
 };
 
@@ -43,10 +43,6 @@ export type UserInfo = {
   username: string;
   /** 昵称 */
   nickname: string;
-  /** 邮箱 */
-  email: string;
-  /** 联系电话 */
-  phone: string;
   /** 简介 */
   description: string;
 };
@@ -74,17 +70,19 @@ type ResultTable = {
 
 /** 登录 */
 export const getLogin = (data?: object) => {
-  return http.request<UserResult>("post", "/login", { data });
+  return http.request<UserResult>("post", "/auth/login", { data });
 };
 
 /** 刷新`token` */
 export const refreshTokenApi = (data?: object) => {
-  return http.request<RefreshTokenResult>("post", "/refresh-token", { data });
+  return http.request<RefreshTokenResult>("post", "/auth/refresh-token", {
+    data
+  });
 };
 
 /** 账户设置-个人信息 */
 export const getMine = (data?: object) => {
-  return http.request<UserInfoResult>("get", "/mine", { data });
+  return http.request<UserInfoResult>("get", "/auth/me", { data });
 };
 
 /** 账户设置-个人安全日志 */

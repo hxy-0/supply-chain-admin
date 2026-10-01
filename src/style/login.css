@@ -1,96 +1,95 @@
-.wave {
-  position: fixed;
-  height: 100%;
-  width: 80%;
+.login-page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  background-color: #ccc;
+  background-position: right center;
+  background-size: auto 100%;
+  background-repeat: no-repeat;
+}
+
+.login-background-video {
+  position: absolute;
+  top: 0;
   left: 0;
-  bottom: 0;
+  width: 68%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
   z-index: -1;
+  mask-image: linear-gradient(to right, #000 78%, transparent 100%);
+}
+
+.login-page::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 53%;
+  width: 15%;
+  background: linear-gradient(to right, transparent, #ccc);
+  pointer-events: none;
+  content: "";
 }
 
 .login-container {
-  width: 100vw;
-  height: 100vh;
-  max-width: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  grid-gap: 18rem;
-  padding: 0 2rem;
-}
-
-.img {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-}
-
-.img img {
-  width: 500px;
+  gap: clamp(2rem, 5vw, 5rem);
+  min-height: 100vh;
+  padding: 4rem 0;
 }
 
 .login-box {
   display: flex;
-  align-items: center;
+  justify-content: center;
+  width: 32%;
+  flex-shrink: 0;
+  max-width: 100%;
+  padding: 28px 24px;
+  border-radius: 20px;
+  background: transparent;
   text-align: center;
-  overflow: hidden;
 }
 
 .login-form {
-  width: 360px;
+  width: 300px;
+  max-width: 100%;
 }
 
 .avatar {
-  width: 350px;
-  height: 80px;
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto;
+  object-fit: contain;
 }
 
 .login-form h2 {
-  text-transform: uppercase;
   margin: 15px 0;
-  color: #999;
+  color: #687589;
   font:
     bold 200% Consolas,
     Monaco,
     monospace;
-}
-
-@media screen and (max-width: 1180px) {
-  .login-container {
-    grid-gap: 9rem;
-  }
-
-  .login-form {
-    width: 290px;
-  }
-
-  .login-form h2 {
-    font-size: 2.4rem;
-    margin: 8px 0;
-  }
-
-  .img img {
-    width: 360px;
-  }
-
-  .avatar {
-    width: 280px;
-    height: 80px;
-  }
+  text-transform: uppercase;
 }
 
 @media screen and (max-width: 968px) {
-  .wave {
+  .login-page::before {
     display: none;
   }
-
-  .img {
+  .login-background-video {
     display: none;
   }
-
   .login-container {
-    grid-template-columns: 1fr;
+    justify-content: center;
+    padding: 4rem 1rem;
   }
 
   .login-box {
-    justify-content: center;
+    width: 100%;
+    padding: 28px clamp(20px, 5vw, 48px);
   }
 }

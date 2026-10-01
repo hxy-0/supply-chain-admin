@@ -204,6 +204,13 @@ status:
   pureNoNotify: 暂无通知
   pureNoTodo: 暂无待办
 login:
+  pureAccount: 手机号或邮箱
+  pureAccountReg: 请输入有效的手机号或邮箱
+  pureCodeLogin: 验证码登录
+  purePasswordLength: 密码至少8位，且不能超过72字节
+  pureCodeSent: 验证码已发送，请查收
+  pureResetSuccess: 密码已更新，请重新登录
+  pureProviderPending: 该登录方式暂未接入
   pureUsername: 账号
   purePassword: 密码
   pureVerifyCode: 验证码
@@ -219,7 +226,7 @@ login:
   pureWeChatLogin: 微信登录
   pureAlipayLogin: 支付宝登录
   pureQQLogin: QQ登录
-  pureWeiBoLogin: 微博登录
+  pureGitHubLogin: GitHub 登录
   purePhone: 手机号码
   pureSmsVerifyCode: 短信验证码
   pureBack: 返回

@@ -36,27 +36,13 @@ class PureHttp {
     this.httpInterceptorsResponse();
   }
 
-  /** `token`过期后，暂存待执行的请求 */
-  private static requests = [];
-
-  /** 防止重复刷新`token` */
-  private static isRefreshing = false;
+  private static refreshPromise: Promise<string> | null = null;
 
   /** 初始化配置对象 */
   private static initConfig: PureHttpRequestConfig = {};
 
   /** 保存当前`Axios`实例对象 */
   private static axiosInstance: AxiosInstance = Axios.create(defaultConfig);
-
-  /** 重连原始请求 */
-  private static retryOriginalRequest(config: PureHttpRequestConfig) {
-    return new Promise(resolve => {
-      PureHttp.requests.push((token: string) => {
-        config.headers["Authorization"] = formatToken(token);
-        resolve(config);
-      });
-    });
-  }
 
   /** 请求拦截 */
   private httpInterceptorsRequest(): void {
@@ -72,48 +58,43 @@ class PureHttp {
           return config;
         }
         /** 请求白名单，放置一些不需要`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题） */
-        const whiteList = ["/refresh-token", "/login"];
-        return whiteList.some(url => config.url.endsWith(url))
-          ? config
-          : new Promise(resolve => {
-              const data = getToken();
-              if (data) {
-                const now = new Date().getTime();
-                const expired = parseInt(data.expires) - now <= 0;
-                if (expired) {
-                  if (!PureHttp.isRefreshing) {
-                    PureHttp.isRefreshing = true;
-                    // token过期刷新
-                    useUserStoreHook()
-                      .handRefreshToken({ refreshToken: data.refreshToken })
-                      .then(res => {
-                        const token = res.data.accessToken;
-                        config.headers["Authorization"] = formatToken(token);
-                        PureHttp.requests.forEach(cb => cb(token));
-                        PureHttp.requests = [];
-                      })
-                      .catch(_err => {
-                        PureHttp.requests = [];
-                        useUserStoreHook().logOut();
-                        message(transformI18n($t("login.pureLoginExpired")), {
-                          type: "warning"
-                        });
-                      })
-                      .finally(() => {
-                        PureHttp.isRefreshing = false;
-                      });
-                  }
-                  resolve(PureHttp.retryOriginalRequest(config));
-                } else {
-                  config.headers["Authorization"] = formatToken(
-                    data.accessToken
-                  );
-                  resolve(config);
+        const whiteList = [
+          "/auth/login",
+          "/auth/refresh-token",
+          "/auth/code",
+          "/auth/code-login",
+          "/auth/register",
+          "/auth/reset-password",
+          "/auth/github/authorize",
+          "/auth/github/callback",
+          "/auth/logout"
+        ];
+        if (whiteList.includes(config.url)) return config;
+        const data = getToken();
+        if (!data) return config;
+        if (Number(data.expires) <= Date.now()) {
+          if (!PureHttp.refreshPromise) {
+            PureHttp.refreshPromise = useUserStoreHook()
+              .handRefreshToken({ refreshToken: data.refreshToken })
+              .then(res => res.data.accessToken)
+              .catch(error => {
+                if (error.response?.status === 401 || error === "登录已过期") {
+                  useUserStoreHook().logOut();
+                  message(transformI18n($t("login.pureLoginExpired")), {
+                    type: "warning"
+                  });
                 }
-              } else {
-                resolve(config);
-              }
-            });
+                throw error;
+              })
+              .finally(() => {
+                PureHttp.refreshPromise = null;
+              });
+          }
+          config.headers["Authorization"] = formatToken(
+            await PureHttp.refreshPromise
+          );
+        } else config.headers["Authorization"] = formatToken(data.accessToken);
+        return config;
       },
       error => {
         return Promise.reject(error);
