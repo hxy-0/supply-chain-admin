@@ -1,39 +1,22 @@
 import { reactive } from "vue";
 import type { FormRules } from "element-plus";
 import { isPhone, isEmail } from "@pureadmin/utils";
-
-/** 自定义表单规则校验 */
-export const formRules = reactive(<FormRules>{
-  nickname: [{ required: true, message: "用户昵称为必填项", trigger: "blur" }],
-  username: [{ required: true, message: "用户名称为必填项", trigger: "blur" }],
-  password: [{ required: true, message: "用户密码为必填项", trigger: "blur" }],
-  phone: [
+export const formRules = reactive<FormRules>({
+  nickname: [{ required: true, message: "请输入昵称", trigger: "blur" }],
+  username: [
     {
-      validator: (rule, value, callback) => {
-        if (value === "") {
-          callback();
-        } else if (!isPhone(value)) {
-          callback(new Error("请输入正确的手机号码格式"));
+      required: true,
+      validator: (_rule, value, done) => {
+        if (isPhone(value) || isEmail(value)) {
+          done();
         } else {
-          callback();
+          done(new Error("请输入手机号或邮箱"));
         }
       },
       trigger: "blur"
-      // trigger: "click" // 如果想在点击确定按钮时触发这个校验，trigger 设置成 click 即可
     }
   ],
-  email: [
-    {
-      validator: (rule, value, callback) => {
-        if (value === "") {
-          callback();
-        } else if (!isEmail(value)) {
-          callback(new Error("请输入正确的邮箱格式"));
-        } else {
-          callback();
-        }
-      },
-      trigger: "blur"
-    }
+  password: [
+    { required: true, min: 8, message: "密码至少 8 位", trigger: "blur" }
   ]
 });

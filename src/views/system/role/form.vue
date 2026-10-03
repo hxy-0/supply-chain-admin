@@ -41,6 +41,7 @@ defineExpose({ getRef });
         v-model="newFormInline.code"
         clearable
         placeholder="请输入角色标识"
+        :disabled="newFormInline.codeDisabled"
       />
     </el-form-item>
 

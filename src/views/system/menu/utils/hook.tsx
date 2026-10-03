@@ -1,7 +1,7 @@
 import editForm from "../form.vue";
 import { handleTree } from "@/utils/tree";
 import { message } from "@/utils/message";
-import { getMenuList } from "@/api/system";
+import { getMenuList, saveSystemMenu, deleteSystemMenu } from "@/api/system";
 import { transformI18n } from "@/plugins/i18n";
 import { addDialog } from "@/components/ReDialog";
 import { reactive, ref, onMounted, h } from "vue";
@@ -99,7 +99,9 @@ export function useMenu() {
   }
 
   function resetForm(formEl) {
-    if (!formEl) return;
+    if (!formEl) {
+      return;
+    }
     formEl.resetFields();
     onSearch();
   }
@@ -124,7 +126,9 @@ export function useMenu() {
   }
 
   function formatHigherMenuOptions(treeList) {
-    if (!treeList || !treeList.length) return;
+    if (!treeList || !treeList.length) {
+      return;
+    }
     const newTreeList = [];
     for (let i = 0; i < treeList.length; i++) {
       treeList[i].title = transformI18n(treeList[i].title);
@@ -134,22 +138,47 @@ export function useMenu() {
     return newTreeList;
   }
 
+  function findMenuById(treeList, id: number) {
+    for (const item of treeList ?? []) {
+      if (item.id === id) return item;
+      const found = findMenuById(item.children, id);
+      if (found) return found;
+    }
+  }
+
+  function editableRoutePath(path: string, parentId: number) {
+    if (!path || !parentId) return path ?? "";
+    const parentPath = findMenuById(dataList.value, parentId)?.path?.replace(
+      /\/$/,
+      ""
+    );
+    const prefix = parentPath ? `${parentPath}/` : "";
+    return prefix && path.startsWith(prefix) ? path.slice(prefix.length) : path;
+  }
+
   function openDialog(title = "新增", row?: FormItemProps) {
     addDialog({
       title: `${title}菜单`,
       props: {
         formInline: {
           menuType: row?.menuType ?? 0,
-          higherMenuOptions: formatHigherMenuOptions(cloneDeep(dataList.value)),
+          higherMenuOptions: formatHigherMenuOptions(
+            cloneDeep(dataList.value).filter(
+              item =>
+                item.menuType !== 3 &&
+                item.id !== (row as FormItemProps & { id?: number })?.id
+            )
+          ),
           parentId: row?.parentId ?? 0,
           title: row?.title ?? "",
           name: row?.name ?? "",
-          path: row?.path ?? "",
+          path: editableRoutePath(row?.path ?? "", row?.parentId ?? 0),
           component: row?.component ?? "",
           rank: row?.rank ?? 99,
           redirect: row?.redirect ?? "",
           icon: row?.icon ?? "",
           extraIcon: row?.extraIcon ?? "",
+          transitionName: row?.transitionName ?? "",
           enterTransition: row?.enterTransition ?? "",
           leaveTransition: row?.leaveTransition ?? "",
           activePath: row?.activePath ?? "",
@@ -182,24 +211,21 @@ export function useMenu() {
           done(); // 关闭弹框
           onSearch(); // 刷新表格数据
         }
-        FormRef.validate(valid => {
+        FormRef.validate(async valid => {
           if (valid) {
-            console.log("curData", curData);
-            // 表单规则校验通过
-            if (title === "新增") {
-              // 实际开发先调用新增接口，再进行下面操作
-              chores();
-            } else {
-              // 实际开发先调用修改接口，再进行下面操作
-              chores();
-            }
+            await saveSystemMenu(
+              (row as FormItemProps & { id?: number })?.id,
+              curData
+            );
+            chores();
           }
         });
       }
     });
   }
 
-  function handleDelete(row) {
+  async function handleDelete(row) {
+    await deleteSystemMenu(row.id);
     message(`您删除了菜单名称为${transformI18n(row.title)}的这条数据`, {
       type: "success"
     });

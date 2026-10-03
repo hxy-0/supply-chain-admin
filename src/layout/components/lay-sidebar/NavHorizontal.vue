@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppLogo from "@/components/AppLogo/index.vue";
 import { emitter } from "@/utils/mitt";
 import { useNav } from "@/layout/hooks/useNav";
 import LaySearch from "../lay-search/index.vue";
@@ -30,7 +31,6 @@ const {
   title,
   logout,
   onPanel,
-  getLogo,
   username,
   userAvatar,
   backTopMenu,
@@ -61,7 +61,7 @@ onMounted(() => {
     class="horizontal-header"
   >
     <div v-if="showLogo" class="horizontal-header-left" @click="backTopMenu">
-      <img :src="getLogo()" alt="logo" />
+      <AppLogo />
       <span>{{ title }}</span>
     </div>
     <el-menu

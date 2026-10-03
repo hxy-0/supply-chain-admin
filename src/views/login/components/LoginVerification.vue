@@ -42,9 +42,11 @@ const rules: FormRules = {
   password: [
     {
       validator: (_rule, value, done) => {
-        if (value.length < 8 || new TextEncoder().encode(value).length > 72)
+        if (value.length < 8 || new TextEncoder().encode(value).length > 72) {
           done(new Error(t("login.purePasswordLength")));
-        else done();
+        } else {
+          done();
+        }
       },
       trigger: "blur"
     }
@@ -52,9 +54,11 @@ const rules: FormRules = {
   repeatPassword: [
     {
       validator: (_rule, value, done) => {
-        if (!value || value !== form.password)
+        if (!value || value !== form.password) {
           done(new Error(t("login.purePassWordDifferentReg")));
-        else done();
+        } else {
+          done();
+        }
       },
       trigger: "blur"
     }
@@ -70,9 +74,12 @@ const label = computed(() =>
   )
 );
 async function send() {
-  if (sending.value || seconds.value) return;
-  if (!(await formRef.value?.validateField("account").catch(() => false)))
+  if (sending.value || seconds.value) {
     return;
+  }
+  if (!(await formRef.value?.validateField("account").catch(() => false))) {
+    return;
+  }
   sending.value = true;
   try {
     await authRequest<void>("/code", {
@@ -82,7 +89,9 @@ async function send() {
     message(t("login.pureCodeSent"), { type: "success" });
     seconds.value = 60;
     timer = setInterval(() => {
-      if (--seconds.value <= 0) clearInterval(timer);
+      if (--seconds.value <= 0) {
+        clearInterval(timer);
+      }
     }, 1000);
   } catch (error) {
     message(error.message, { type: "error" });
@@ -91,8 +100,9 @@ async function send() {
   }
 }
 async function submit() {
-  if (loading.value || !(await formRef.value?.validate().catch(() => false)))
+  if (loading.value || !(await formRef.value?.validate().catch(() => false))) {
     return;
+  }
   loading.value = true;
   try {
     if (props.mode === "login") {
@@ -131,11 +141,26 @@ onUnmounted(() => clearInterval(timer));
 <template>
   <el-form
     ref="formRef"
+    class="verification-form"
     :model="form"
     :rules="rules"
     size="large"
     @submit.prevent="submit"
   >
+    <div class="auth-form-heading">
+      <h3>
+        {{
+          t(
+            mode === "login"
+              ? "login.pureCodeLogin"
+              : mode === "register"
+                ? "login.pureRegister"
+                : "login.pureForget"
+          )
+        }}
+      </h3>
+      <p>{{ t("login.pureAccount") }} · {{ t("login.pureVerifyCode") }}</p>
+    </div>
     <Motion>
       <el-form-item prop="account">
         <el-input
@@ -149,7 +174,7 @@ onUnmounted(() => clearInterval(timer));
     </Motion>
     <Motion :delay="100">
       <el-form-item prop="code">
-        <div class="w-full flex justify-between">
+        <div class="verification-code-row">
           <el-input
             v-model="form.code"
             clearable
@@ -160,7 +185,9 @@ onUnmounted(() => clearInterval(timer));
             :prefix-icon="useRenderIcon(Keyhole)"
           />
           <el-button
-            class="ml-2!"
+            class="verification-send"
+            type="primary"
+            plain
             :loading="sending"
             :disabled="seconds > 0"
             @click="send"
@@ -203,7 +230,9 @@ onUnmounted(() => clearInterval(timer));
       >
       <el-form-item
         ><el-button
-          class="w-full"
+          class="auth-back"
+          link
+          type="primary"
           @click="useUserStoreHook().SET_CURRENTPAGE(0)"
           >{{ t("login.pureBack") }}</el-button
         ></el-form-item

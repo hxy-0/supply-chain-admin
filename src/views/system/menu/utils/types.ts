@@ -11,6 +11,7 @@ interface FormItemProps {
   redirect: string;
   icon: string;
   extraIcon: string;
+  transitionName: string;
   enterTransition: string;
   leaveTransition: string;
   activePath: string;

@@ -14,7 +14,12 @@ import { useLayout } from "@/layout/hooks/useLayout";
 import { useUserStoreHook } from "@/store/modules/user";
 import { ref, reactive, watch, computed, onMounted } from "vue";
 import LoginVerification from "./components/LoginVerification.vue";
-import Github from "~icons/ri/github-fill";
+import Github from "@/assets/svg/GitHub.svg?component";
+import Wechat from "@/assets/svg/wechat.svg?component";
+import Alipay from "@/assets/svg/alipay.svg?component";
+import Feishu from "@/assets/svg/Feishu.svg?component";
+import AppLogo from "@/components/AppLogo/index.vue";
+import type { Component } from "vue";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useTranslationLang } from "@/layout/hooks/useTranslationLang";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
@@ -32,12 +37,12 @@ defineOptions({
 });
 
 const loginVideo = `${import.meta.env.BASE_URL}media/city-logistics-login.mp4`;
-const thirdPartyLogos: Record<string, string> = {
-  qq: `${import.meta.env.BASE_URL}media/qq.svg`,
-  wechat: `${import.meta.env.BASE_URL}media/wechat.svg`,
-  alipay: `${import.meta.env.BASE_URL}media/alipay.svg`
+const thirdPartyLogos: Record<string, Component> = {
+  wechat: Wechat,
+  alipay: Alipay,
+  feishu: Feishu,
+  github: Github
 };
-const loginLogo = `${import.meta.env.BASE_URL}media/supply-chain-logo.png`;
 const loginDay = ref(7);
 const loading = ref(false);
 const checked = ref(false);
@@ -61,7 +66,9 @@ const ruleForm = reactive({
 });
 
 const onLogin = async (formEl: FormInstance | undefined) => {
-  if (loading.value || !(await formEl?.validate().catch(() => false))) return;
+  if (loading.value || !(await formEl?.validate().catch(() => false))) {
+    return;
+  }
   loading.value = true;
   try {
     const store = useUserStoreHook();
@@ -84,7 +91,7 @@ const immediateDebounce = debounce(
   true
 );
 async function thirdLogin(provider: string) {
-  if (provider !== "github") {
+  if (provider !== "github" && provider !== "feishu") {
     message(t("login.pureProviderPending"), { type: "info" });
     return;
   }
@@ -94,7 +101,7 @@ async function thirdLogin(provider: string) {
   loading.value = true;
   try {
     const result = await authRequest<{ authorizationUrl: string }>(
-      "/github/authorize"
+      `/${provider}/authorize`
     );
     window.location.assign(result.authorizationUrl);
   } catch (error) {
@@ -109,14 +116,15 @@ onMounted(async () => {
   }
   loading.value = true;
   try {
+    const providerName = callback.provider === "feishu" ? "飞书" : "GitHub";
     if (callback.error) {
-      throw new Error("GitHub 授权已取消或失败，请重试");
+      throw new Error(`${providerName} 授权已取消或失败，请重试`);
     }
     if (!callback.code || !callback.state) {
-      throw new Error("GitHub 授权回调无效，请重新登录");
+      throw new Error(`${providerName} 授权回调无效，请重新登录`);
     }
     await completeLogin(
-      await authRequest("/github/callback", {
+      await authRequest(`/${callback.provider}/callback`, {
         code: callback.code,
         state: callback.state
       })
@@ -193,7 +201,7 @@ watch(loginDay, value => {
     <div class="login-container">
       <div class="login-box">
         <div class="login-form">
-          <img :src="loginLogo" class="avatar" alt="供应链 Logo" />
+          <AppLogo :size="88" original class="avatar" />
           <Motion>
             <h2 class="outline-hidden">
               <TypeIt
@@ -288,11 +296,11 @@ watch(loginDay, value => {
 
             <Motion :delay="300">
               <el-form-item>
-                <div class="w-full h-5 flex-bc">
+                <div class="auth-alternatives">
                   <el-button
                     v-for="(item, index) in operates"
                     :key="index"
-                    class="w-full mt-4!"
+                    class="auth-alternative"
                     size="default"
                     @click="useUserStoreHook().SET_CURRENTPAGE(item.page)"
                   >
@@ -305,40 +313,26 @@ watch(loginDay, value => {
 
           <Motion v-if="currentPage === 0" :delay="350">
             <el-form-item>
-              <el-divider>
+              <el-divider class="auth-divider">
                 <p class="text-gray-500 text-xs">
                   {{ t("login.pureThirdLogin") }}
                 </p>
               </el-divider>
-              <div class="w-full flex justify-evenly">
+              <div class="third-party-login">
                 <button
                   v-for="(item, index) in thirdParty"
                   :key="index"
                   :title="t(item.title)"
                   :aria-label="t(item.title)"
                   type="button"
-                  class="cursor-pointer transition-opacity hover:opacity-75"
+                  class="third-party-button"
+                  :disabled="loading"
                   @click="thirdLogin(item.icon)"
                 >
-                  <Github
-                    v-if="item.icon === 'github'"
-                    width="22"
-                    height="22"
-                  />
-                  <IconifyIconOnline
-                    v-else-if="!thirdPartyLogos[item.icon]"
-                    :icon="`ri:${item.icon}-fill`"
-                    width="20"
-                    :style="{ color: item.color }"
-                    class="cursor-pointer transition-opacity hover:opacity-75"
-                  />
-                  <img
-                    v-else
-                    :src="thirdPartyLogos[item.icon]"
-                    :alt="t(item.title)"
-                    width="22"
-                    height="22"
-                    class="cursor-pointer transition-opacity hover:opacity-75"
+                  <component
+                    :is="thirdPartyLogos[item.icon]"
+                    class="third-party-icon"
+                    aria-hidden="true"
                   />
                 </button>
               </div>

@@ -30,6 +30,7 @@ const props = withDefaults(defineProps<FormProps>(), {
     redirect: "",
     icon: "",
     extraIcon: "",
+    transitionName: "",
     enterTransition: "",
     leaveTransition: "",
     activePath: "",
@@ -119,7 +120,11 @@ defineExpose({ getRef });
           <el-input
             v-model="newFormInline.path"
             clearable
-            placeholder="请输入路由路径"
+            :placeholder="
+              newFormInline.parentId
+                ? '请输入相对子路径，如 index'
+                : '请输入根路径，如 /system'
+            "
           />
         </el-form-item>
       </re-col>
@@ -189,6 +194,15 @@ defineExpose({ getRef });
         </el-form-item>
       </re-col>
 
+      <re-col v-show="newFormInline.menuType < 2" :value="12" :xs="24" :sm="24">
+        <el-form-item label="动画名称">
+          <el-input
+            v-model="newFormInline.transitionName"
+            clearable
+            placeholder="例如 fade；进场动画优先"
+          />
+        </el-form-item>
+      </re-col>
       <re-col v-show="newFormInline.menuType < 2" :value="12" :xs="24" :sm="24">
         <el-form-item label="进场动画">
           <ReAnimateSelector

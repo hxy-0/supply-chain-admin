@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AppLogo from "@/components/AppLogo/index.vue";
 import { getTopMenu } from "@/router/utils";
 import { useNav } from "@/layout/hooks/useNav";
 
@@ -6,7 +7,7 @@ defineProps({
   collapse: Boolean
 });
 
-const { title, getLogo } = useNav();
+const { title } = useNav();
 </script>
 
 <template>
@@ -19,7 +20,7 @@ const { title, getLogo } = useNav();
         class="sidebar-logo-link"
         :to="getTopMenu()?.path ?? '/'"
       >
-        <img :src="getLogo()" alt="logo" />
+        <AppLogo />
         <span class="sidebar-title">{{ title }}</span>
       </router-link>
       <router-link
@@ -29,7 +30,7 @@ const { title, getLogo } = useNav();
         class="sidebar-logo-link"
         :to="getTopMenu()?.path ?? '/'"
       >
-        <img :src="getLogo()" alt="logo" />
+        <AppLogo />
         <span class="sidebar-title">{{ title }}</span>
       </router-link>
     </transition>

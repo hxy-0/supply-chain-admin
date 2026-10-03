@@ -1,75 +1,31 @@
 <script setup lang="ts">
-import { message } from "@/utils/message";
-import { initRouter } from "@/router/utils";
-import { storageLocal } from "@pureadmin/utils";
-import { type CSSProperties, ref, computed } from "vue";
+import { computed } from "vue";
 import { useUserStoreHook } from "@/store/modules/user";
-import { usePermissionStoreHook } from "@/store/modules/permission";
 
 defineOptions({
   name: "PermissionPage"
 });
 
-const elStyle = computed((): CSSProperties => {
-  return {
-    width: "85vw",
-    justifyContent: "start"
-  };
-});
-
-const username = ref(useUserStoreHook()?.username);
-
-const options = [
-  {
-    value: "admin",
-    label: "管理员角色"
-  },
-  {
-    value: "common",
-    label: "普通角色"
-  }
-];
-
-function onChange() {
-  useUserStoreHook()
-    .loginByUsername({ username: username.value, password: "admin123" })
-    .then(() => {
-      storageLocal().removeItem("async-routes");
-      usePermissionStoreHook().clearAllCachePage();
-      initRouter();
-    })
-    .catch(err => {
-      message(err, { type: "error" });
-    });
-}
+const userStore = useUserStoreHook();
+const roleText = computed(() => userStore.roles.join("、") || "暂无角色");
+const permissionText = computed(
+  () => userStore.permissions.join("、") || "暂无按钮权限"
+);
 </script>
 
 <template>
   <div>
-    <p class="mb-2!">
-      模拟后台根据不同角色返回对应路由，观察左侧菜单变化（管理员角色可查看系统管理菜单、普通角色不可查看系统管理菜单）
-    </p>
-    <el-card shadow="never" :style="elStyle">
+    <el-card shadow="never">
       <template #header>
-        <div class="card-header">
-          <span>当前角色：{{ username }}</span>
-        </div>
-        <el-link
-          class="mt-2"
-          href="https://github.com/pure-admin/vue-pure-admin/blob/main/src/views/permission/page/index.vue"
-          target="_blank"
-        >
-          代码位置 src/views/permission/page/index.vue
-        </el-link>
+        <span class="font-medium">当前登录账号的权限信息</span>
       </template>
-      <el-select v-model="username" class="w-40!" @change="onChange">
-        <el-option
-          v-for="item in options"
-          :key="item.value"
-          :label="item.label"
-          :value="item.value"
-        />
-      </el-select>
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="账号">{{ userStore.username || "-" }}</el-descriptions-item>
+        <el-descriptions-item label="昵称">{{ userStore.nickname || "-" }}</el-descriptions-item>
+        <el-descriptions-item label="角色">{{ roleText }}</el-descriptions-item>
+        <el-descriptions-item label="按钮权限">{{ permissionText }}</el-descriptions-item>
+      </el-descriptions>
+      <el-alert class="mt-4" type="info" :closable="false" title="菜单和按钮权限由后端按当前登录账号返回；本页不再使用演示账号重新登录。" />
     </el-card>
   </div>
 </template>

@@ -144,7 +144,7 @@ onMounted(() => {
       <PureTableBar
         :class="[isShow && !deviceDetection() ? 'w-[60vw]!' : 'w-full']"
         style="transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1)"
-        title="角色管理（仅演示，操作后不生效）"
+        title="角色管理"
         :columns="columns"
         @refresh="onSearch"
       >
@@ -200,6 +200,7 @@ onMounted(() => {
                     link
                     type="primary"
                     :size="size"
+                    :disabled="['admin', 'common'].includes(row.code)"
                     :icon="useRenderIcon(Delete)"
                   >
                     删除

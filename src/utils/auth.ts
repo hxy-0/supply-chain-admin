@@ -9,6 +9,8 @@ export interface DataInfo<T> {
   expires: T;
   /** 用于调用刷新accessToken的接口时所需的token */
   refreshToken: string;
+  /** refresh token 到期时间，毫秒时间戳 */
+  refreshExpires: number;
   /** 头像 */
   avatar?: string;
   /** 用户名 */
@@ -42,19 +44,24 @@ export function getToken(): DataInfo<number> {
 /**
  * @description 设置`token`以及一些必要信息并采用无感刷新`token`方案
  * 无感刷新：后端返回`accessToken`（访问接口使用的`token`）、`refreshToken`（用于调用刷新`accessToken`的接口时所需的`token`，`refreshToken`的过期时间（比如30天）应大于`accessToken`的过期时间（比如2小时））、`expires`（`accessToken`的过期时间）
- * 将`accessToken`、`expires`、`refreshToken`这三条信息放在key值为authorized-token的cookie里（过期自动销毁）
+ * token 存储的有效期跟随 refreshExpires，access token 过期后仍能刷新。
  * 将`avatar`、`username`、`nickname`、`roles`、`permissions`、`refreshToken`、`expires`这七条信息放在key值为`user-info`的localStorage里（利用`multipleTabsKey`当浏览器完全关闭后自动销毁）
  */
 export function setToken(data: DataInfo<number>) {
   let expires = 0;
-  const { accessToken, refreshToken } = data;
+  const { accessToken, refreshToken, refreshExpires } = data;
   const { isRemembered, loginDay } = useUserStoreHook();
   expires = new Date(data.expires).getTime(); // 毫秒时间戳，兼容升级前的 ISO 字符串。
-  const cookieString = JSON.stringify({ accessToken, expires, refreshToken });
+  const cookieString = JSON.stringify({
+    accessToken,
+    expires,
+    refreshToken,
+    refreshExpires
+  });
 
-  expires > 0
+  refreshExpires > 0
     ? Cookies.set(TokenKey, cookieString, {
-        expires: (expires - Date.now()) / 86400000
+        expires: (refreshExpires - Date.now()) / 86400000
       })
     : Cookies.set(TokenKey, cookieString);
 
@@ -75,7 +82,9 @@ export function setToken(data: DataInfo<number>) {
     useUserStoreHook().SET_ROLES(roles);
     useUserStoreHook().SET_PERMS(permissions);
     storageLocal().setItem(userKey, {
+      accessToken,
       refreshToken,
+      refreshExpires,
       expires,
       avatar,
       username,

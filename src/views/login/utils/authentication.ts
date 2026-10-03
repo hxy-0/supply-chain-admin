@@ -33,7 +33,17 @@ export async function completeLogin(data: UserResult["data"]) {
     await router.push(getTopMenu(true)?.path || "/welcome");
     message(transformI18n("login.pureLoginSuccess"), { type: "success" });
   } catch (error) {
-    removeToken();
-    throw error;
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      removeToken();
+      throw error;
+    }
+    // 登录和菜单加载是两个独立结果。认证已经成功时，不能因为某一条后台菜单
+    // 配置错误就删除令牌并把用户留在登录页；至少允许进入静态首页继续操作。
+    console.error("动态菜单加载失败", error);
+    await router.replace({ path: "/welcome", query: { login: Date.now() } });
+    message(`登录成功，但动态菜单加载失败：${error.message || "菜单配置异常"}`, {
+      type: "warning",
+      duration: 6000
+    });
   }
 }

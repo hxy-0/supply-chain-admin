@@ -143,9 +143,6 @@ export function useNav() {
   }
 
   /** 获取`logo` */
-  function getLogo() {
-    return new URL("/logo.svg", import.meta.url).href;
-  }
 
   return {
     title,
@@ -166,7 +163,6 @@ export function useNav() {
     menuSelect,
     handleResize,
     resolvePath,
-    getLogo,
     isCollapse,
     pureApp,
     username,

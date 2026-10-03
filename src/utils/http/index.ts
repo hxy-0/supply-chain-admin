@@ -66,13 +66,26 @@ class PureHttp {
           "/auth/register",
           "/auth/reset-password",
           "/auth/github/authorize",
-          "/auth/github/callback",
+            "/auth/github/callback",
+            "/auth/feishu/authorize",
+            "/auth/feishu/callback",
           "/auth/logout"
         ];
-        if (whiteList.includes(config.url)) return config;
+        if (whiteList.includes(config.url)) {
+          return config;
+        }
         const data = getToken();
-        if (!data) return config;
-        if (Number(data.expires) <= Date.now()) {
+        if (!data) {
+          return config;
+        }
+        if (Number(data.refreshExpires) <= Date.now()) {
+          useUserStoreHook().logOut();
+          message(transformI18n($t("login.pureLoginExpired")), {
+            type: "warning"
+          });
+          throw new Error("登录已过期");
+        }
+        if (Number(data.expires) <= Date.now() + 30_000) {
           if (!PureHttp.refreshPromise) {
             PureHttp.refreshPromise = useUserStoreHook()
               .handRefreshToken({ refreshToken: data.refreshToken })
@@ -93,7 +106,9 @@ class PureHttp {
           config.headers["Authorization"] = formatToken(
             await PureHttp.refreshPromise
           );
-        } else config.headers["Authorization"] = formatToken(data.accessToken);
+        } else {
+          config.headers["Authorization"] = formatToken(data.accessToken);
+        }
         return config;
       },
       error => {

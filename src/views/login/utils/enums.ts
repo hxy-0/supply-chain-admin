@@ -17,9 +17,9 @@ const thirdParty = [
     color: "#1677FF"
   },
   {
-    title: $t("login.pureQQLogin"),
-    icon: "qq",
-    color: "#12B7F5"
+    title: $t("login.pureFeishuLogin"),
+    icon: "feishu",
+    color: "#3370FF"
   },
   {
     title: $t("login.pureGitHubLogin"),

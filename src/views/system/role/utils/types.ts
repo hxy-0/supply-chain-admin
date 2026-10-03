@@ -7,6 +7,8 @@ interface FormItemProps {
   code: string;
   /** 备注 */
   remark: string;
+  /** 内置角色编码不可修改 */
+  codeDisabled?: boolean;
 }
 interface FormProps {
   formInline: FormItemProps;

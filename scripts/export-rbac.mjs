@@ -17,8 +17,12 @@ const evaluate = (file, modules) => {
     {
       exports,
       require: name => {
-        if (name in modules) return modules[name];
-        if (name.includes("?component")) return { default: () => null };
+        if (name in modules) {
+          return modules[name];
+        }
+        if (name.includes("?component")) {
+          return { default: () => null };
+        }
         throw new Error(`Unsupported import ${name} in ${file}`);
       },
       console,
@@ -58,7 +62,12 @@ const seen = new Set(),
   seenNames = new Set(),
   permissions = new Set();
 function append(route, parent = null) {
-  if (seen.has(route.path)) throw new Error(`Duplicate route ${route.path}`);
+  if (route.path === "/system/dept/index") {
+    return;
+  }
+  if (seen.has(route.path)) {
+    throw new Error(`Duplicate route ${route.path}`);
+  }
   seen.add(route.path);
   count++;
   const meta = { ...(route.meta || {}) };
@@ -72,29 +81,33 @@ function append(route, parent = null) {
   delete meta.keepAlive;
   delete meta.backstage;
   let component = typeof route.component === "string" ? route.component : null;
-  if (typeof route.component === "function")
+  if (typeof route.component === "function") {
     component =
       route.component
         .toString()
         .match(/@\/views\/([^"']+)/)?.[1]
         ?.replace(/\.vue$/, "") ?? null;
+  }
   const kind = route.children?.length
     ? "DIRECTORY"
     : /^https?:\/\//.test(route.path)
       ? "EXTERNAL"
       : "PAGE";
   const routeName = route.name || `Menu${count}`;
-  if (seenNames.has(routeName))
+  if (seenNames.has(routeName)) {
     throw new Error(`Duplicate route name ${routeName}`);
+  }
   seenNames.add(routeName);
   sql.push(
-    `INSERT INTO sys_menu(parent_id,kind,title,route_path,route_name,component,redirect,icon,sort_order,visible,keep_alive,meta) VALUES (${parent ? `(SELECT menu_id FROM sys_menu WHERE route_path=${quote(parent)})` : "NULL"},${quote(kind)},${quote(route.meta?.title || routeName)},${quote(route.path)},${quote(routeName)},${quote(component)},${quote(route.redirect)},${quote(route.meta?.icon)},${route.meta?.rank || count},${route.meta?.showLink !== false},${route.meta?.keepAlive === true},${quote(JSON.stringify(meta))}::jsonb) ON CONFLICT(route_path) DO NOTHING;`
+    `INSERT INTO sys_menu(parent_id,kind,title,route_path,route_name,component,redirect,icon,sort_order,visible,keep_alive,extra_icon,transition_name,enter_transition,leave_transition,active_path,frame_src,frame_loading,hidden_tag,fixed_tag,show_parent) VALUES (${parent ? `(SELECT menu_id FROM sys_menu WHERE route_path=${quote(parent)})` : "NULL"},${quote(kind)},${quote(route.meta?.title || routeName)},${quote(route.path)},${quote(routeName)},${quote(component)},${quote(route.redirect)},${quote(route.meta?.icon)},${route.meta?.rank || count},${route.meta?.showLink !== false},${route.meta?.keepAlive === true},${quote(meta.extraIcon || "")},${quote(meta.transition?.name || "")},${quote(meta.transition?.enterTransition || "")},${quote(meta.transition?.leaveTransition || "")},${quote(meta.activePath || "")},${quote(meta.frameSrc || "")},${meta.frameLoading !== false},${meta.hiddenTag === true},${meta.fixedTag === true},${meta.showParent === true}) ON CONFLICT(route_path) DO NOTHING;`
   );
   sql.push(
     `INSERT INTO sys_role_menu(role_id,menu_id) SELECT r.role_id,m.menu_id FROM sys_role r CROSS JOIN sys_menu m WHERE r.code='admin' AND m.route_path=${quote(route.path)} ON CONFLICT DO NOTHING;`
   );
   for (const code of auths) {
-    if (code === "*:*:*") continue;
+    if (code === "*:*:*") {
+      continue;
+    }
     if (!permissions.has(code)) {
       permissions.add(code);
       permissionCount++;

@@ -2,13 +2,9 @@ interface FormItemProps {
   id?: number;
   /** 用于判断是`新增`还是`修改` */
   title: string;
-  higherDeptOptions: Record<string, unknown>[];
-  parentId: number;
   nickname: string;
   username: string;
   password: string;
-  phone: string | number;
-  email: string;
   sex: string | number;
   status: number;
   dept?: {
@@ -27,7 +23,7 @@ interface RoleFormItemProps {
   /** 角色列表 */
   roleOptions: any[];
   /** 选中的角色列表 */
-  ids: Record<number, unknown>[];
+  ids: number[];
 }
 interface RoleFormProps {
   formInline: RoleFormItemProps;

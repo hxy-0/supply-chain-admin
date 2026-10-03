@@ -225,7 +225,7 @@ login:
   pureRegister: Register
   pureWeChatLogin: WeChat Login
   pureAlipayLogin: Alipay Login
-  pureQQLogin: QQ Login
+  pureFeishuLogin: Feishu Login
   pureGitHubLogin: GitHub Login
   purePhone: Phone
   pureSmsVerifyCode: SMS VerifyCode

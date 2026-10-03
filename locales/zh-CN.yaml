@@ -225,7 +225,7 @@ login:
   pureRegister: 注册
   pureWeChatLogin: 微信登录
   pureAlipayLogin: 支付宝登录
-  pureQQLogin: QQ登录
+  pureFeishuLogin: 飞书登录
   pureGitHubLogin: GitHub 登录
   purePhone: 手机号码
   pureSmsVerifyCode: 短信验证码

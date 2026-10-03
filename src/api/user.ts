@@ -20,6 +20,8 @@ export type UserResult = {
     refreshToken: string;
     /** `accessToken`到期时间，毫秒时间戳 */
     expires: number;
+    /** refresh token 到期时间，毫秒时间戳 */
+    refreshExpires: number;
   };
 };
 
@@ -33,6 +35,8 @@ export type RefreshTokenResult = {
     refreshToken: string;
     /** `accessToken`到期时间，毫秒时间戳 */
     expires: number;
+    /** refresh token 到期时间，毫秒时间戳 */
+    refreshExpires: number;
   };
 };
 

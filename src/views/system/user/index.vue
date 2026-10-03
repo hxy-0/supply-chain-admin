@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import tree from "./tree.vue";
 import { useUser } from "./utils/hook";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -18,7 +17,6 @@ defineOptions({
   name: "SystemUser"
 });
 
-const treeRef = ref();
 const formRef = ref();
 const tableRef = ref();
 
@@ -27,8 +25,6 @@ const {
   loading,
   columns,
   dataList,
-  treeData,
-  treeLoading,
   selectedNum,
   pagination,
   buttonClass,
@@ -37,8 +33,6 @@ const {
   resetForm,
   onbatchDel,
   openDialog,
-  onTreeSelect,
-  handleUpdate,
   handleDelete,
   handleUpload,
   handleReset,
@@ -47,39 +41,22 @@ const {
   onSelectionCancel,
   handleCurrentChange,
   handleSelectionChange
-} = useUser(tableRef, treeRef);
+} = useUser(tableRef);
 </script>
 
 <template>
   <div :class="['flex', 'justify-between', deviceDetection() && 'flex-wrap']">
-    <tree
-      ref="treeRef"
-      :class="['mr-2', deviceDetection() ? 'w-full' : 'min-w-50']"
-      :treeData="treeData"
-      :treeLoading="treeLoading"
-      @tree-select="onTreeSelect"
-    />
-    <div
-      :class="[deviceDetection() ? ['w-full', 'mt-2'] : 'w-[calc(100%-200px)]']"
-    >
+    <div class="w-full">
       <el-form
         ref="formRef"
         :inline="true"
         :model="form"
         class="search-form bg-bg_color w-full pl-8 pt-3 overflow-auto"
       >
-        <el-form-item label="用户名称：" prop="username">
+        <el-form-item label="登录账号：" prop="username">
           <el-input
             v-model="form.username"
-            placeholder="请输入用户名称"
-            clearable
-            class="w-45!"
-          />
-        </el-form-item>
-        <el-form-item label="手机号码：" prop="phone">
-          <el-input
-            v-model="form.phone"
-            placeholder="请输入手机号码"
+            placeholder="手机号或邮箱"
             clearable
             class="w-45!"
           />
@@ -110,11 +87,7 @@ const {
         </el-form-item>
       </el-form>
 
-      <PureTableBar
-        title="用户管理（仅演示，操作后不生效）"
-        :columns="columns"
-        @refresh="onSearch"
-      >
+      <PureTableBar title="用户管理" :columns="columns" @refresh="onSearch">
         <template #buttons>
           <el-button
             type="primary"
@@ -203,7 +176,6 @@ const {
                   type="primary"
                   :size="size"
                   :icon="useRenderIcon(More)"
-                  @click="handleUpdate(row)"
                 />
                 <template #dropdown>
                   <el-dropdown-menu>
@@ -216,7 +188,7 @@ const {
                         :icon="useRenderIcon(Upload)"
                         @click="handleUpload(row)"
                       >
-                        上传头像
+                        修改头像
                       </el-button>
                     </el-dropdown-item>
                     <el-dropdown-item>

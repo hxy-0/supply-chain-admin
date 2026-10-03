@@ -9,8 +9,20 @@
       name="viewport"
       content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=0"
     />
-    <title>vue-pure-admin</title>
-    <link rel="icon" href="/favicon.ico" />
+    <title>供应链管理</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="/src/assets/svg/sustainable-supply-chain.svg"
+    />
+    <script>
+      // OAuth 回调和 HttpOnly Cookie 使用 127.0.0.1；统一本地入口，避免 localhost 触发 CORS 且回调丢失 Cookie。
+      if (window.location.hostname === "localhost") {
+        const canonicalUrl = new URL(window.location.href);
+        canonicalUrl.hostname = "127.0.0.1";
+        window.location.replace(canonicalUrl.href);
+      }
+    </script>
   </head>
 
   <body>
