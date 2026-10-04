@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import SpecificationsEditor from "./SpecificationsEditor.vue";
 import {
   ElMessage,
   ElMessageBox,
@@ -13,6 +14,7 @@ import {
   getProduct,
   getProducts,
   saveProduct,
+  pmsRequest,
   type Brand,
   type Category,
   type Product,
@@ -56,7 +58,11 @@ const saving = ref(false);
 const formRef = ref<FormInstance>();
 const detail = ref<Product>();
 const skuDetails = ref<SkuDetail[]>([]);
+const hasSpecifications = computed(
+  () => !!form.productId && form.skus.some(sku => sku.specSignature !== "")
+);
 const form = reactive<ProductCommand>(emptyForm());
+const specificationsDirty = ref(false);
 const rules: FormRules = {
   productCode: [
     {
@@ -152,9 +158,13 @@ function reset() {
   void loadProducts();
 }
 function create() {
+  specificationsDirty.value = false;
   detail.value = undefined;
   skuDetails.value = [];
-  Object.assign(form, emptyForm(), { productId: undefined });
+  Object.assign(form, emptyForm(), {
+    productId: undefined,
+    version: undefined
+  });
   readonly.value = false;
   dialog.value = true;
 }
@@ -163,16 +173,10 @@ async function open(product: Product, view = false) {
     const data = await getProduct(product.productId);
     detail.value = data;
     skuDetails.value = data.skus ?? [];
-    const multi =
-      skuDetails.value.length !== 1 ||
-      skuDetails.value[0]?.sku.specSignature !== "";
-    readonly.value = view || data.status === 3 || multi;
-    if (!view && multi)
-      ElMessage.info(
-        "本阶段支持单规格商品编辑，多规格商品可查看详情和管理上下架"
-      );
+    readonly.value = view || data.status === 3;
     Object.assign(form, emptyForm(), {
       productId: data.productId,
+      version: data.version,
       productCode: data.productCode,
       name: data.name,
       categoryId: data.categoryId,
@@ -199,14 +203,21 @@ async function open(product: Product, view = false) {
   }
 }
 async function save() {
+  if (!form.productId && specificationsDirty.value) {
+    ElMessage.warning("销售属性已变更，请重新生成 SKU 后再保存");
+    return;
+  }
   if (!(await formRef.value?.validate().catch(() => false))) return;
   saving.value = true;
   try {
-    await saveProduct({
+    const command = {
       ...form,
       productCode: form.productCode.trim(),
       name: form.name.trim()
-    });
+    };
+    if (hasSpecifications.value)
+      await pmsRequest("patch", `/products/${form.productId}/details`, command);
+    else await saveProduct(command);
     ElMessage.success(form.productId ? "商品已保存" : "商品草稿已创建");
     dialog.value = false;
     await loadProducts();
@@ -264,7 +275,7 @@ onMounted(() => {
     <el-card shadow="never">
       <div class="page-heading">
         <div>
-          <h2>商品列表</h2>
+          <h2>SPU 管理</h2>
           <p>维护商品资料、SKU 零售价与销售状态</p>
         </div>
         <el-button type="primary" :disabled="!!optionError" @click="create"
@@ -456,7 +467,7 @@ onMounted(() => {
     >
       <el-alert
         v-if="!form.productId"
-        title="新商品保存为草稿，自动创建一个默认 SKU；填写零售价后可在列表上架。"
+        title="新商品保存为草稿；可使用默认 SKU 或生成多规格 SKU，填写零售价后在列表上架。"
         type="info"
         :closable="false"
         class="error-alert"
@@ -562,7 +573,54 @@ onMounted(() => {
           ><el-input v-model="form.description" type="textarea" :rows="3"
         /></el-form-item>
         <el-divider content-position="left">SKU 与零售价</el-divider>
-        <div v-if="!readonly && form.skus.length === 1" class="sku-form">
+        <SpecificationsEditor
+          v-if="!form.productId && !readonly"
+          @changed="specificationsDirty = true"
+          @generated="
+            (axes, skus) => {
+              form.salesAttributes = axes;
+              specificationsDirty = false;
+              form.skus = skus;
+            }
+          "
+        />
+        <el-alert
+          v-if="hasSpecifications && !readonly"
+          title="此处编辑 SPU 基本资料，规格及价格在 SKU 管理中维护。"
+          type="info"
+          :closable="false"
+        />
+        <el-table
+          v-if="!form.productId && form.salesAttributes.length"
+          :data="form.skus"
+          row-key="specSignature"
+        >
+          <el-table-column prop="specText" label="规格" min-width="170" />
+          <el-table-column label="SKU 编码" min-width="130"
+            ><template #default="{ row }"
+              ><el-input v-model="row.skuCode" maxlength="64" /></template
+          ></el-table-column>
+          <el-table-column label="条码" min-width="130"
+            ><template #default="{ row }"
+              ><el-input v-model="row.barcode" maxlength="64" /></template
+          ></el-table-column>
+          <el-table-column label="零售价 (CNY)" min-width="170"
+            ><template #default="{ row }"
+              ><el-input-number
+                v-model="row.retailPrice"
+                :min="0"
+                :precision="4" /></template
+          ></el-table-column>
+        </el-table>
+        <div
+          v-if="
+            !readonly &&
+            form.skus.length === 1 &&
+            !hasSpecifications &&
+            !form.salesAttributes.length
+          "
+          class="sku-form"
+        >
           <el-row :gutter="20">
             <el-col :span="12"
               ><el-form-item label="SKU 编码"
@@ -612,7 +670,10 @@ onMounted(() => {
             ></el-col>
           </el-row>
         </div>
-        <el-table v-else :data="skuDetails.map(item => item.sku)">
+        <el-table
+          v-else-if="form.productId || readonly"
+          :data="skuDetails.map(item => item.sku)"
+        >
           <el-table-column prop="skuCode" label="SKU 编码" min-width="120" />
           <el-table-column label="规格" min-width="160"
             ><template #default="{ row }">{{

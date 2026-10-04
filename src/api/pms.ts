@@ -9,11 +9,20 @@ export interface Category {
   parentCid: Id;
   showStatus: number;
   productUnit?: string;
+  catLevel?: number;
+  sort?: number;
+  icon?: string;
 }
 export interface Brand {
   brandId: Id;
   name: string;
   status: number;
+  brandCode: string;
+  englishName?: string;
+  logoUrl?: string;
+  websiteUrl?: string;
+  description?: string;
+  sortOrder?: number;
 }
 export interface ProductAttribute {
   attributeId: Id;
@@ -34,6 +43,7 @@ export interface SkuImage {
   sortOrder?: number;
 }
 export interface Sku {
+  version?: number;
   skuId?: Id;
   specSignature: string;
   specText?: string;
@@ -61,6 +71,7 @@ export interface SkuDetail {
   images: SkuImage[];
 }
 export interface Product {
+  version?: number;
   productId: Id;
   productCode: string;
   name: string;
@@ -81,6 +92,7 @@ export interface Product {
   skus?: SkuDetail[];
 }
 export interface ProductCommand {
+  version?: number;
   productId?: Id;
   productCode: string;
   name: string;
@@ -102,7 +114,7 @@ export interface ProductCommand {
   };
 }
 export async function pmsRequest<T>(
-  method: "get" | "post",
+  method: "get" | "post" | "delete" | "patch",
   path: string,
   data?: object,
   params?: object
