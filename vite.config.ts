@@ -32,6 +32,19 @@ export default async ({ mode }: ConfigEnv): Promise<UserConfigExport> => {
         "/api/mp": { target: "http://127.0.0.1:8080", changeOrigin: true },
         "/api/wechat": { target: "http://127.0.0.1:8080", changeOrigin: true },
         "/api/drivers": { target: "http://127.0.0.1:8080", changeOrigin: true },
+        "/api/products": {
+          target: "http://127.0.0.1:8080",
+          changeOrigin: true
+        },
+        "/api/categories": {
+          target: "http://127.0.0.1:8080",
+          changeOrigin: true
+        },
+        "/api/brands": { target: "http://127.0.0.1:8080", changeOrigin: true },
+        "/api/attributes": {
+          target: "http://127.0.0.1:8080",
+          changeOrigin: true
+        },
         // 其余 tms 接口（/carriers、/vehicles、/queue、/monitoring 等）不带 /api 前缀：剥掉
         "/api": {
           target: "http://127.0.0.1:8080",
