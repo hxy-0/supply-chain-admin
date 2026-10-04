@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { signatures, type Axis } from "./specifications";
+import ProductSpecifications from "../components/ProductSpecifications.vue";
+import ProductParameters from "../components/ProductParameters.vue";
+import ProductSkuTable from "../components/ProductSkuTable.vue";
+import SkuImages from "../components/SkuImages.vue";
+import SkuFields from "../components/SkuFields.vue";
+import ProductImages from "../components/ProductImages.vue";
 import type { PageResult } from "@/api/tms";
 import { categoryOptions } from "../category-options";
 import {
@@ -22,10 +27,34 @@ import {
   type Category,
   type Product,
   type ProductCommand,
+  getEnabledAttributes,
+  getCategoryAttributes,
+  type Attribute,
+  type CategoryAttribute,
   type SkuDetail
 } from "@/api/pms";
 
+import { useRouter } from "vue-router";
 defineOptions({ name: "PmsProducts" });
+const router = useRouter();
+async function removeDraft(product: Product) {
+  try {
+    await ElMessageBox.confirm(
+      `删除草稿「${product.name}」及其 SKU？`,
+      "删除草稿",
+      { type: "warning" }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await pmsRequest("delete", `/products/${product.productId}`);
+    ElMessage.success("草稿已删除");
+    await loadProducts();
+  } catch (error) {
+    ElMessage.error(errorMessage(error));
+  }
+}
 const statuses = ["草稿", "已上架", "已下架", "已归档"];
 const tagTypes = ["info", "success", "warning", "info"] as const;
 const filters = reactive({
@@ -61,6 +90,81 @@ const hasSpecifications = computed(
 );
 const form = reactive<ProductCommand>(emptyForm());
 const specificationsDirty = ref(false);
+const editSpecifications = ref(false);
+watch(editSpecifications, value => {
+  if (value) specificationsDirty.value = true;
+});
+const template = ref<CategoryAttribute[]>([]);
+const attributeOptions = ref<Attribute[]>([]);
+const templateLoading = ref(false);
+const templateError = ref("");
+const salesOptions = computed(() =>
+  template.value.length
+    ? template.value.filter(item => item.attributeKind === 1)
+    : attributeOptions.value.filter(
+        item =>
+          item.inputType !== 3 &&
+          !form.attributes.some(
+            parameter =>
+              String(parameter.attributeId) === String(item.attributeId)
+          )
+      )
+);
+const parameterOptions = computed(() =>
+  template.value.length
+    ? template.value.filter(item => item.attributeKind === 2)
+    : attributeOptions.value.filter(
+        item =>
+          !form.salesAttributes.some(
+            axis => String(axis.attributeId) === String(item.attributeId)
+          )
+      )
+);
+let templateRequest = 0;
+async function loadTemplate() {
+  const request = ++templateRequest;
+  templateLoading.value = true;
+  templateError.value = "";
+  try {
+    const [items, all] = await Promise.all([
+      form.categoryId
+        ? getCategoryAttributes(form.categoryId)
+        : Promise.resolve([]),
+      getEnabledAttributes()
+    ]);
+    if (request !== templateRequest) return;
+    template.value = items;
+    attributeOptions.value = all;
+  } catch (error) {
+    if (request === templateRequest) templateError.value = errorMessage(error);
+  } finally {
+    if (request === templateRequest) templateLoading.value = false;
+  }
+}
+watch(
+  () => form.categoryId,
+  () => {
+    if (dialog.value) void loadTemplate();
+  }
+);
+function changeCategory() {
+  form.attributes = [];
+  form.salesAttributes = [];
+  form.skus = emptyForm().skus;
+  specificationsDirty.value = false;
+  const category = categories.value.find(
+    item => String(item.catId) === String(form.categoryId)
+  );
+  form.productUnit = category?.productUnit || "";
+}
+function generated(
+  selections: ProductCommand["salesAttributes"],
+  skus: ProductCommand["skus"]
+) {
+  form.salesAttributes = selections;
+  form.skus = skus;
+}
+
 const rules: FormRules = {
   productCode: [
     {
@@ -99,7 +203,7 @@ function emptyForm(): ProductCommand {
         specSignature: "",
         retailPrice: 0,
         currencyCode: "CNY",
-        status: "1",
+        status: 1,
         isDefault: true,
         images: []
       }
@@ -156,8 +260,7 @@ function reset() {
   void loadProducts();
 }
 function create() {
-  salesAxes.value = [];
-  void loadSalesAttributes();
+  editSpecifications.value = false;
   specificationsDirty.value = false;
   detail.value = undefined;
   skuDetails.value = [];
@@ -167,6 +270,7 @@ function create() {
   });
   readonly.value = false;
   dialog.value = true;
+  void loadTemplate();
 }
 async function open(product: Product, view = false) {
   try {
@@ -189,22 +293,59 @@ async function open(product: Product, view = false) {
       attributes: data.attributes ?? [],
       images: (data.images ?? []).map(image => ({
         ...image,
-        imageType: String(image.imageType)
+        imageType: image.imageType
       })),
       skus: skuDetails.value.map(item => ({
         ...item.sku,
-        status: String(item.sku.status),
+        status: item.sku.status,
         images: item.images ?? []
       }))
     });
+    const axes = new Map<
+      string,
+      { attributeId: Id; valueIds: Id[]; sortOrder: number }
+    >();
+    const active = skuDetails.value.filter(item => item.sku.status === 1);
+    for (const item of active.length ? active : skuDetails.value)
+      for (const value of item.attributes) {
+        const key = String(value.attributeId);
+        if (!axes.has(key))
+          axes.set(key, {
+            attributeId: value.attributeId,
+            valueIds: [],
+            sortOrder: axes.size
+          });
+        const axis = axes.get(key)!;
+        if (
+          !axis.valueIds.some(
+            id => String(id) === String(value.attributeValueId)
+          )
+        )
+          axis.valueIds.push(value.attributeValueId);
+      }
+    form.salesAttributes = [...axes.values()];
+    editSpecifications.value = false;
+    specificationsDirty.value = false;
     dialog.value = true;
+    void loadTemplate();
   } catch (error) {
     ElMessage.error(errorMessage(error));
   }
 }
 async function save() {
-  if (!form.productId && specificationsDirty.value) {
+  if (
+    (!form.productId || editSpecifications.value) &&
+    specificationsDirty.value
+  ) {
     ElMessage.warning("销售属性已变更，请重新生成 SKU 后再保存");
+    return;
+  }
+  if (templateLoading.value || templateError.value) {
+    ElMessage.warning("请等待分类模板加载完成，失败时请重试");
+    return;
+  }
+  if (form.images.some(image => !image.imageUrl.trim())) {
+    ElMessage.warning("请填写每张图片的地址");
     return;
   }
   if (!(await formRef.value?.validate().catch(() => false))) return;
@@ -215,7 +356,7 @@ async function save() {
       productCode: form.productCode.trim(),
       name: form.name.trim()
     };
-    if (hasSpecifications.value)
+    if (form.productId && !editSpecifications.value)
       await pmsRequest("patch", `/products/${form.productId}/details`, command);
     else await saveProduct(command);
     ElMessage.success(form.productId ? "商品已保存" : "商品草稿已创建");
@@ -263,137 +404,6 @@ function formatTime(timestamp?: number) {
   return timestamp
     ? new Date(Number(timestamp)).toLocaleString("zh-CN", { hour12: false })
     : "—";
-}
-interface SalesAttribute {
-  attributeId: Id;
-  name: string;
-  inputType: number;
-  status: number;
-}
-interface SalesValue {
-  attributeValueId: Id;
-  valueName: string;
-  status: number;
-}
-const attributes = ref<SalesAttribute[]>([]);
-const salesValues = reactive<Record<string, SalesValue[]>>({});
-const salesAxes = ref<Axis[]>([]);
-watch(
-  salesAxes,
-  () => {
-    specificationsDirty.value = true;
-  },
-  { deep: true, flush: "sync" }
-);
-const salesError = ref("");
-const masterVisible = ref(false);
-const masterSaving = ref(false);
-const masterRef = ref<FormInstance>();
-const master = reactive({
-  attributeId: undefined as Id | undefined,
-  code: "",
-  name: ""
-});
-async function loadSalesAttributes() {
-  salesError.value = "";
-  try {
-    const result: SalesAttribute[] = [];
-    let pageNum = 1;
-    while (true) {
-      const page = await pmsRequest<PageResult<SalesAttribute>>(
-        "get",
-        "/attributes",
-        undefined,
-        { pageNum, pageSize: 100, status: 1 }
-      );
-      result.push(...page.records);
-      if (!page.records.length || result.length >= page.total) break;
-      pageNum++;
-    }
-    attributes.value = result.filter(a => a.inputType !== 3);
-  } catch (e) {
-    salesError.value = e.message;
-  }
-}
-async function loadSalesValues(axis: Axis) {
-  axis.valueIds = [];
-  try {
-    const id = String(axis.attributeId);
-    salesValues[id] = (
-      await pmsRequest<SalesValue[]>("get", `/attributes/${id}/salesValues`)
-    ).filter(v => v.status === 1);
-  } catch (e) {
-    ElMessage.error(e.message);
-  }
-}
-function generateSkus() {
-  try {
-    const result = signatures(salesAxes.value);
-    const selections = salesAxes.value.map((axis, index) => ({
-      ...axis,
-      sortOrder: index
-    }));
-    const skus: ProductCommand["skus"] = result.map((signature, index) => ({
-      specSignature: signature,
-      specText: signature
-        .split(";")
-        .filter(Boolean)
-        .map(pair => {
-          const [id, value] = pair.split("=");
-          return `${attributes.value.find(a => String(a.attributeId) === id)?.name}: ${salesValues[id]?.find(v => String(v.attributeValueId) === value)?.valueName}`;
-        })
-        .join(" / "),
-      retailPrice: 0,
-      currencyCode: "CNY",
-      status: "1",
-      isDefault: index === 0,
-      images: []
-    }));
-    form.salesAttributes = selections;
-    form.skus = skus;
-    specificationsDirty.value = false;
-  } catch (e) {
-    ElMessage.error(e.message);
-  }
-}
-function createMaster(attributeId?: Id) {
-  Object.assign(master, { attributeId, code: "", name: "" });
-  masterVisible.value = true;
-}
-async function saveMaster() {
-  if (!(await masterRef.value?.validate().catch(() => false))) return;
-  masterSaving.value = true;
-  try {
-    if (master.attributeId) {
-      await pmsRequest("post", "/attributes/salesValues", {
-        attributeId: master.attributeId,
-        valueCode: master.code.trim(),
-        valueName: master.name.trim(),
-        status: "1",
-        sortOrder: 0
-      });
-      salesValues[String(master.attributeId)] = (
-        await pmsRequest<SalesValue[]>(
-          "get",
-          `/attributes/${master.attributeId}/salesValues`
-        )
-      ).filter(v => v.status === 1);
-    } else {
-      await pmsRequest("post", "/attributes", {
-        attributeCode: master.code.trim(),
-        name: master.name.trim(),
-        inputType: 2,
-        status: "1"
-      });
-      await loadSalesAttributes();
-    }
-    masterVisible.value = false;
-    ElMessage.success("已保存");
-  } catch (e) {
-    ElMessage.error(e.message);
-  } finally {
-    masterSaving.value = false;
-  }
 }
 
 onMounted(() => {
@@ -523,11 +533,29 @@ onMounted(() => {
         >
         <el-table-column label="更新时间" min-width="180"
           ><template #default="{ row }">{{
-            formatTime(row.updatedAt)
+            formatTime(row.updateTime)
           }}</template></el-table-column
         >
-        <el-table-column label="操作" fixed="right" width="240">
+        <el-table-column label="操作" fixed="right" width="340">
           <template #default="{ row }">
+            <el-button
+              link
+              type="primary"
+              @click="
+                router.push({
+                  path: '/pms/skus',
+                  query: { productId: String(row.productId) }
+                })
+              "
+              >SKU</el-button
+            >
+            <el-button
+              v-if="row.status === 0"
+              link
+              type="danger"
+              @click="removeDraft(row as Product)"
+              >删除</el-button
+            >
             <el-button link type="primary" @click="open(row as Product, true)"
               >详情</el-button
             >
@@ -624,11 +652,13 @@ onMounted(() => {
             ><el-form-item label="商品类别" prop="categoryId">
               <el-cascader
                 v-model="form.categoryId"
+                :disabled="!!form.productId"
                 :options="enabledCategoryTree"
                 :props="{ emitPath: false }"
                 filterable
                 placeholder="请选择商品类别"
                 class="full-width"
+                @change="changeCategory"
               /> </el-form-item
           ></el-col>
           <el-col :span="12"
@@ -688,94 +718,41 @@ onMounted(() => {
         /></el-form-item>
         <el-divider content-position="left">SKU 与零售价</el-divider>
 
-        <div v-if="!form.productId && !readonly" class="specifications">
-          <el-alert
-            v-if="salesError"
-            :title="salesError"
-            type="error"
-            :closable="false"
-          />
-          <p>
-            选择销售属性及预设值，生成 SKU
-            后逐项填写编码和零售价。重新生成会重置下表输入。
-          </p>
-          <div v-for="(axis, index) in salesAxes" :key="index" class="axis">
-            <el-select
-              v-model="axis.attributeId"
-              filterable
-              placeholder="销售属性"
-              @change="loadSalesValues(axis)"
-              ><el-option
-                v-for="attribute in attributes"
-                :key="attribute.attributeId"
-                :label="attribute.name"
-                :value="attribute.attributeId"
-            /></el-select>
-            <el-select
-              v-model="axis.valueIds"
-              multiple
-              filterable
-              placeholder="选择属性值"
-              ><el-option
-                v-for="value in salesValues[String(axis.attributeId)] || []"
-                :key="value.attributeValueId"
-                :label="value.valueName"
-                :value="value.attributeValueId"
-            /></el-select>
-            <el-button
-              :disabled="!axis.attributeId"
-              @click="createMaster(axis.attributeId)"
-              >添加属性值</el-button
-            ><el-button @click="salesAxes.splice(index, 1)">移除</el-button>
-          </div>
-          <el-button @click="salesAxes.push({ attributeId: '', valueIds: [] })"
-            >添加销售属性</el-button
-          ><el-button @click="createMaster()">新增属性</el-button
-          ><el-button type="primary" @click="generateSkus">生成 SKU</el-button>
-          <el-dialog
-            v-model="masterVisible"
-            :title="master.attributeId ? '新增属性值' : '新增销售属性'"
-            width="min(500px,90vw)"
-            append-to-body
-            destroy-on-close
-            :close-on-click-modal="false"
-            :close-on-press-escape="!masterSaving"
-            :show-close="!masterSaving"
-          >
-            <el-form
-              ref="masterRef"
-              :model="master"
-              label-width="80px"
-              :disabled="masterSaving"
-              ><el-form-item
-                label="编码"
-                prop="code"
-                :rules="[
-                  { required: true, whitespace: true, message: '请输入编码' }
-                ]"
-                ><el-input v-model="master.code" maxlength="64" /></el-form-item
-              ><el-form-item
-                label="名称"
-                prop="name"
-                :rules="[
-                  { required: true, whitespace: true, message: '请输入名称' }
-                ]"
-                ><el-input v-model="master.name" maxlength="64" /></el-form-item
-            ></el-form>
-            <template #footer
-              ><el-button
-                :disabled="masterSaving"
-                @click="masterVisible = false"
-                >取消</el-button
-              ><el-button
-                type="primary"
-                :loading="masterSaving"
-                @click="saveMaster"
-                >保存</el-button
-              ></template
-            >
-          </el-dialog>
-        </div>
+        <el-alert
+          v-if="templateError"
+          :title="templateError"
+          type="error"
+          :closable="false"
+        />
+        <el-button v-if="templateError" @click="loadTemplate"
+          >重新加载模板</el-button
+        >
+        <el-checkbox
+          v-if="form.productId && !readonly && detail?.status !== 1"
+          v-model="editSpecifications"
+          >调整商品规格（旧组合停用，新组合新建）</el-checkbox
+        >
+        <ProductSpecifications
+          v-if="!readonly && (!form.productId || editSpecifications)"
+          :key="String(form.productId || 'new') + ':' + String(form.categoryId)"
+          :options="salesOptions"
+          :selections="form.salesAttributes"
+          :skus="form.skus"
+          :disabled="
+            templateLoading || saving || !!templateError || !form.categoryId
+          "
+          @generated="generated"
+          @dirty="specificationsDirty = $event"
+          @refresh="loadTemplate"
+        />
+        <el-divider content-position="left">普通参数</el-divider>
+        <ProductParameters
+          v-model="form.attributes"
+          :options="parameterOptions"
+          :disabled="readonly || saving"
+        />
+        <el-divider content-position="left">商品图片</el-divider>
+        <ProductImages v-model="form.images" :disabled="readonly || saving" />
 
         <el-alert
           v-if="hasSpecifications && !readonly"
@@ -783,88 +760,34 @@ onMounted(() => {
           type="info"
           :closable="false"
         />
-        <el-table
-          v-if="!form.productId && form.salesAttributes.length"
-          :data="form.skus"
-          row-key="specSignature"
-        >
-          <el-table-column prop="specText" label="规格" min-width="170" />
-          <el-table-column label="SKU 编码" min-width="130"
-            ><template #default="{ row }"
-              ><el-input v-model="row.skuCode" maxlength="64" /></template
-          ></el-table-column>
-          <el-table-column label="条码" min-width="130"
-            ><template #default="{ row }"
-              ><el-input v-model="row.barcode" maxlength="64" /></template
-          ></el-table-column>
-          <el-table-column label="零售价 (CNY)" min-width="170"
-            ><template #default="{ row }"
-              ><el-input-number
-                v-model="row.retailPrice"
-                :min="0"
-                :precision="4" /></template
-          ></el-table-column>
-        </el-table>
+        <ProductSkuTable
+          v-if="
+            (!form.productId || editSpecifications) &&
+            form.salesAttributes.length
+          "
+          v-model="form.skus"
+          :disabled="saving"
+        />
+
         <div
           v-if="
             !readonly &&
+            (!form.productId || editSpecifications) &&
             form.skus.length === 1 &&
-            !hasSpecifications &&
+            (!hasSpecifications || editSpecifications) &&
             !form.salesAttributes.length
           "
           class="sku-form"
         >
-          <el-row :gutter="20">
-            <el-col :span="12"
-              ><el-form-item label="SKU 编码"
-                ><el-input
-                  v-model="form.skus[0].skuCode"
-                  maxlength="64" /></el-form-item
-            ></el-col>
-            <el-col :span="12"
-              ><el-form-item label="条码"
-                ><el-input
-                  v-model="form.skus[0].barcode"
-                  maxlength="64" /></el-form-item
-            ></el-col>
-            <el-col :span="12"
-              ><el-form-item label="SKU 名称"
-                ><el-input
-                  v-model="form.skus[0].name"
-                  maxlength="255" /></el-form-item
-            ></el-col>
-            <el-col :span="12"
-              ><el-form-item label="零售价"
-                ><el-input-number
-                  v-model="form.skus[0].retailPrice"
-                  :min="0"
-                  :precision="4" /></el-form-item
-            ></el-col>
-            <el-col :span="12"
-              ><el-form-item label="币种"
-                ><el-input
-                  v-model="form.skus[0].currencyCode"
-                  maxlength="3"
-                  placeholder="CNY" /></el-form-item
-            ></el-col>
-            <el-col :span="12"
-              ><el-form-item label="重量 (kg)"
-                ><el-input-number
-                  v-model="form.skus[0].weightKg"
-                  :min="0"
-                  :precision="4" /></el-form-item
-            ></el-col>
-            <el-col :span="12"
-              ><el-form-item label="SKU 状态"
-                ><el-select v-model="form.skus[0].status"
-                  ><el-option label="启用" value="1" /><el-option
-                    label="停用"
-                    value="0" /></el-select></el-form-item
-            ></el-col>
-          </el-row>
+          <SkuImages v-model="form.skus[0].images" :disabled="saving" />
+          <SkuFields
+            v-model:sku="form.skus[0]"
+            prefix="skus.0"
+            :disabled="saving"
+          />
         </div>
         <el-table
-          v-else-if="form.productId || readonly"
+          v-else-if="(form.productId && !editSpecifications) || readonly"
           :data="skuDetails.map(item => item.sku)"
         >
           <el-table-column prop="skuCode" label="SKU 编码" min-width="120" />

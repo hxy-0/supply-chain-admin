@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { loadAmap } from "./amapLoader";
+
 interface MapPoint {
   longitude: number;
   latitude: number;
@@ -9,6 +10,7 @@ interface MapPoint {
   speedKph?: number;
   gpsTime?: number;
 }
+
 const props = defineProps<{
   points: MapPoint[];
   track?: boolean;
@@ -25,6 +27,7 @@ let map: any,
   marker: any,
   disposed = false,
   selection = 0;
+
 function render() {
   if (!map) return;
   map.remove(overlays);
@@ -80,10 +83,12 @@ function render() {
   if (overlays.length) map.setFitView(overlays);
   move();
 }
+
 function move() {
   const p = props.points[props.activeIndex ?? 0];
   if (marker && p) marker.setPosition([p.longitude, p.latitude]);
 }
+
 watch(() => [props.points, props.track], render, { deep: true });
 watch(() => props.activeIndex, move);
 onMounted(async () => {

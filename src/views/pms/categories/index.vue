@@ -3,7 +3,19 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox, type FormInstance } from "element-plus";
 import { getCategories, pmsRequest, type Category, type Id } from "@/api/pms";
 import { categoryOptions } from "../category-options";
+import CategoryAttributeEditor from "../components/CategoryAttributeEditor.vue";
 defineOptions({ name: "PmsCategories" });
+const templateVisible = ref(false);
+const templateCategory = ref<Category>();
+function configure(row: Category) {
+  templateCategory.value = row;
+  templateVisible.value = true;
+}
+function isLeaf(row: Category) {
+  return !items.value.some(
+    item => String(item.parentCid) === String(row.catId)
+  );
+}
 interface CategoryNode extends Category {
   children?: CategoryNode[];
 }
@@ -117,6 +129,10 @@ onMounted(load);
 </script>
 <template>
   <div class="pms-page">
+    <CategoryAttributeEditor
+      v-model="templateVisible"
+      :category="templateCategory"
+    />
     <el-card shadow="never" class="query-card">
       <el-form inline @submit.prevent
         ><el-form-item label="分类名称"
@@ -175,8 +191,14 @@ onMounted(load);
             }}</el-tag></template
           ></el-table-column
         >
-        <el-table-column label="操作" width="230"
+        <el-table-column label="操作" width="320"
           ><template #default="{ row }"
+            ><el-button
+              v-if="isLeaf(row as Category)"
+              link
+              type="primary"
+              @click="configure(row as Category)"
+              >属性模板</el-button
             ><el-button link type="primary" @click="edit(row as Category)"
               >编辑</el-button
             ><el-button

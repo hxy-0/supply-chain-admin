@@ -3,6 +3,12 @@ export interface Axis {
   valueIds: (string | number)[];
 }
 export function signatures(axes: Axis[], limit = 200): string[] {
+  for (const axis of axes) {
+    if (!/^[1-9]\d*$/.test(String(axis.attributeId)))
+      throw new Error("请选择销售属性");
+    if (axis.valueIds.some(id => !/^[1-9]\d*$/.test(String(id))))
+      throw new Error("属性值无效");
+  }
   const ordered = [...axes].sort((a, b) =>
     BigInt(a.attributeId) < BigInt(b.attributeId) ? -1 : 1
   );

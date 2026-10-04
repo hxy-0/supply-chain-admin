@@ -8,10 +8,11 @@ import {
 } from "element-plus";
 import { pmsRequest, type Brand } from "@/api/pms";
 import type { PageResult } from "@/api/tms";
+import { usePmsPage } from "../composables/usePmsPage";
 defineOptions({ name: "PmsBrands" });
 type BrandForm = Omit<Brand, "brandId" | "status"> & {
   brandId?: string | number;
-  status: string;
+  status: number;
 };
 const query = reactive({
   keyword: "",
@@ -19,10 +20,12 @@ const query = reactive({
   pageNum: 1,
   pageSize: 20
 });
-const rows = ref<Brand[]>([]);
-const total = ref(0);
-const loading = ref(false);
-const failure = ref("");
+const { rows, total, loading, failure, load } = usePmsPage(() =>
+  pmsRequest<PageResult<Brand>>("get", "/brands", undefined, {
+    ...query,
+    keyword: query.keyword.trim() || undefined
+  })
+);
 const visible = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInstance>();
@@ -34,7 +37,7 @@ const empty = (): BrandForm => ({
   websiteUrl: "",
   description: "",
   sortOrder: 0,
-  status: "1"
+  status: 1
 });
 const form = reactive<BrandForm>(empty());
 const rules: FormRules = {
@@ -55,27 +58,6 @@ const rules: FormRules = {
     }
   ]
 };
-let sequence = 0;
-async function load() {
-  const current = ++sequence;
-  loading.value = true;
-  failure.value = "";
-  try {
-    const page = await pmsRequest<PageResult<Brand>>(
-      "get",
-      "/brands",
-      undefined,
-      { ...query, keyword: query.keyword.trim() || undefined }
-    );
-    if (current !== sequence) return;
-    rows.value = page.records;
-    total.value = Number(page.total);
-  } catch (error) {
-    if (current === sequence) failure.value = error.message || "品牌加载失败";
-  } finally {
-    if (current === sequence) loading.value = false;
-  }
-}
 function search() {
   query.pageNum = 1;
   void load();
@@ -86,7 +68,7 @@ async function edit(row?: Brand) {
       ? await pmsRequest<Brand>("get", `/brands/${row.brandId}`)
       : undefined;
     Object.assign(form, empty(), { brandId: undefined }, data, {
-      status: String(data?.status ?? 1)
+      status: data?.status ?? 1
     });
     visible.value = true;
   } catch (error) {
@@ -265,8 +247,8 @@ onMounted(load);
         /></el-form-item>
         <el-form-item label="状态"
           ><el-radio-group v-model="form.status"
-            ><el-radio value="1">启用</el-radio
-            ><el-radio value="0">停用</el-radio></el-radio-group
+            ><el-radio :value="1">启用</el-radio
+            ><el-radio :value="0">停用</el-radio></el-radio-group
           ></el-form-item
         >
         <el-form-item label="排序"

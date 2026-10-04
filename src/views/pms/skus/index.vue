@@ -1,11 +1,52 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 import { ElMessage, type FormInstance } from "element-plus";
-import { pmsRequest, type Sku } from "@/api/pms";
+import { pmsRequest, type Sku, type SkuImage, type Id } from "@/api/pms";
 import type { PageResult } from "@/api/tms";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
+import SkuFields from "../components/SkuFields.vue";
+import { usePmsPage } from "../composables/usePmsPage";
 defineOptions({ name: "PmsSkus" });
+import SkuImages from "../components/SkuImages.vue";
 const router = useRouter();
+const route = useRoute();
+const images = ref<SkuImage[]>([]);
+const imageDialog = ref(false);
+const imageSaving = ref(false);
+const imageSku = ref<Sku>();
+async function editImages(row: SkuRow) {
+  try {
+    const [sku, items] = await Promise.all([
+      pmsRequest<Sku>("get", `/skus/${row.sku.skuId}`),
+      pmsRequest<SkuImage[]>("get", `/skus/${row.sku.skuId}/images`)
+    ]);
+    imageSku.value = sku;
+    images.value = items;
+    imageDialog.value = true;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "图片加载失败");
+  }
+}
+async function saveImages() {
+  if (images.value.some(image => !image.imageUrl.trim())) {
+    ElMessage.warning("请填写图片地址");
+    return;
+  }
+  imageSaving.value = true;
+  try {
+    await pmsRequest("post", `/skus/${imageSku.value!.skuId}/images`, {
+      version: imageSku.value!.version,
+      images: images.value
+    });
+    imageDialog.value = false;
+    ElMessage.success("图片已保存");
+    await load();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "保存失败");
+  } finally {
+    imageSaving.value = false;
+  }
+}
 interface SkuRow {
   sku: Sku;
   productName: string;
@@ -13,14 +54,25 @@ interface SkuRow {
 }
 const filters = reactive({
   keyword: "",
+  productId: route.query.productId
+    ? (String(route.query.productId) as Id)
+    : undefined,
   status: undefined,
   pageNum: 1,
   pageSize: 20
 });
-const rows = ref<SkuRow[]>([]);
-const total = ref(0);
-const loading = ref(false);
-const error = ref("");
+const {
+  rows,
+  total,
+  loading,
+  failure: error,
+  load
+} = usePmsPage(() =>
+  pmsRequest<PageResult<SkuRow>>("get", "/skus", undefined, {
+    ...filters,
+    keyword: filters.keyword.trim() || undefined
+  })
+);
 const dialog = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInstance>();
@@ -30,27 +82,6 @@ const form = reactive<Sku>({
   currencyCode: "CNY",
   status: 1
 });
-let sequence = 0;
-async function load() {
-  const current = ++sequence;
-  loading.value = true;
-  error.value = "";
-  try {
-    const page = await pmsRequest<PageResult<SkuRow>>(
-      "get",
-      "/skus",
-      undefined,
-      { ...filters, keyword: filters.keyword.trim() || undefined }
-    );
-    if (current !== sequence) return;
-    rows.value = page.records;
-    total.value = Number(page.total);
-  } catch (e) {
-    if (current === sequence) error.value = e.message;
-  } finally {
-    if (current === sequence) loading.value = false;
-  }
-}
 function search() {
   filters.pageNum = 1;
   void load();
@@ -77,10 +108,42 @@ async function save() {
     saving.value = false;
   }
 }
+watch(
+  () => route.query.productId,
+  value => {
+    filters.productId = value ? String(value) : undefined;
+    search();
+  }
+);
 onMounted(load);
 </script>
 <template>
   <div class="pms-page">
+    <el-alert
+      v-if="filters.productId"
+      :title="'当前筛选 SPU：' + filters.productId"
+      type="info"
+      :closable="false"
+      ><el-button link @click="router.replace('/pms/skus')"
+        >查看全部 SKU</el-button
+      ></el-alert
+    >
+    <el-dialog
+      v-model="imageDialog"
+      title="SKU 图片"
+      width="min(820px,95vw)"
+      destroy-on-close
+      :close-on-click-modal="false"
+      :show-close="!imageSaving"
+      :close-on-press-escape="!imageSaving"
+      ><SkuImages v-model="images" :disabled="imageSaving" /><template #footer
+        ><el-button :disabled="imageSaving" @click="imageDialog = false"
+          >取消</el-button
+        ><el-button type="primary" :loading="imageSaving" @click="saveImages"
+          >保存</el-button
+        ></template
+      ></el-dialog
+    >
     <el-card shadow="never" class="query-card">
       <el-form inline @submit.prevent="search">
         <el-form-item label="关键词"
@@ -155,8 +218,10 @@ onMounted(load);
             }}</el-tag></template
           ></el-table-column
         >
-        <el-table-column label="操作" width="150"
+        <el-table-column label="操作" width="170"
           ><template #default="{ row }"
+            ><el-button type="primary" link @click="editImages(row as SkuRow)"
+              >图片</el-button
             ><el-button type="primary" link @click="edit(row as SkuRow)"
               >编辑</el-button
             ></template
@@ -199,50 +264,7 @@ onMounted(load);
         <el-form-item label="规格">{{
           form.specText || "默认规格"
         }}</el-form-item>
-        <el-form-item label="SKU 编码"
-          ><el-input v-model="form.skuCode" maxlength="64"
-        /></el-form-item>
-        <el-form-item label="条码"
-          ><el-input v-model="form.barcode" maxlength="64"
-        /></el-form-item>
-        <el-form-item label="SKU 名称"
-          ><el-input v-model="form.name" maxlength="255"
-        /></el-form-item>
-        <el-form-item
-          label="零售价"
-          prop="retailPrice"
-          :rules="[{ required: true, message: '请输入零售价' }]"
-          ><el-input-number v-model="form.retailPrice" :min="0" :precision="4"
-        /></el-form-item>
-        <el-form-item
-          label="币种"
-          prop="currencyCode"
-          :rules="[
-            {
-              required: true,
-              pattern: /^[A-Z]{3}$/,
-              message: '请输入三位大写币种，如 CNY'
-            }
-          ]"
-          ><el-input v-model="form.currencyCode" maxlength="3"
-        /></el-form-item>
-        <el-form-item
-          v-for="field in [
-            { key: 'weightKg', label: '重量 (kg)' },
-            { key: 'lengthCm', label: '长 (cm)' },
-            { key: 'widthCm', label: '宽 (cm)' },
-            { key: 'heightCm', label: '高 (cm)' }
-          ]"
-          :key="field.key"
-          :label="field.label"
-          ><el-input-number v-model="form[field.key]" :min="0" :precision="4"
-        /></el-form-item>
-        <el-form-item label="状态"
-          ><el-radio-group v-model="form.status"
-            ><el-radio :value="1">启用</el-radio
-            ><el-radio :value="0">停用</el-radio></el-radio-group
-          ></el-form-item
-        >
+        <SkuFields v-model:sku="form" :disabled="saving" />
       </el-form>
       <template #footer
         ><el-button :disabled="saving" @click="dialog = false">取消</el-button

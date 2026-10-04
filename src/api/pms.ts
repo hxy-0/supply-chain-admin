@@ -86,7 +86,7 @@ export interface Product {
   sortOrder?: number;
   status: number;
   skuCount?: number;
-  updatedAt?: number;
+  updateTime?: number;
   attributes?: ProductAttribute[];
   images?: ProductImage[];
   skus?: SkuDetail[];
@@ -104,9 +104,9 @@ export interface ProductCommand {
   description?: string;
   sortOrder?: number;
   attributes: ProductAttribute[];
-  images: (Omit<ProductImage, "imageType"> & { imageType: string })[];
+  images: ProductImage[];
   salesAttributes: { attributeId: Id; valueIds: Id[]; sortOrder: number }[];
-  skus: (Omit<Sku, "status"> & { status: string; images: SkuImage[] })[];
+  skus: (Sku & { images: SkuImage[] })[];
   skuDefaults?: {
     retailPrice: number;
     currencyCode: string;
@@ -153,3 +153,50 @@ export async function getBrands(): Promise<Brand[]> {
     pageNum++;
   }
 }
+
+export interface Attribute {
+  attributeId: Id;
+  attributeCode: string;
+  name: string;
+  inputType: number;
+  unit?: string;
+  status: number;
+}
+export interface AttributeValue {
+  attributeValueId: Id;
+  attributeId: Id;
+  valueCode: string;
+  valueName: string;
+  sortOrder: number;
+  status: number;
+}
+export interface CategoryAttribute extends Attribute {
+  attributeKind: number;
+  required: boolean;
+  searchable: boolean;
+  sortOrder: number;
+}
+export const getAttributes = (params: object) =>
+  pmsRequest<PageResult<Attribute>>("get", "/attributes", undefined, params);
+export async function getEnabledAttributes(): Promise<Attribute[]> {
+  const result: Attribute[] = [];
+  for (let pageNum = 1; ; pageNum++) {
+    const page = await getAttributes({ pageNum, pageSize: 100, status: 1 });
+    result.push(...page.records);
+    if (!page.records.length || result.length >= Number(page.total))
+      return result;
+  }
+}
+export const getAttributeValues = (id: Id) =>
+  pmsRequest<AttributeValue[]>("get", `/attributes/${id}/values`);
+export const getCategoryAttributes = (id: Id) =>
+  pmsRequest<CategoryAttribute[]>("get", `/categories/${id}/attributes`);
+export const saveCategoryAttributes = (
+  id: Id,
+  items: CategoryAttribute[],
+  expectedItems?: CategoryAttribute[]
+) =>
+  pmsRequest<CategoryAttribute[]>("post", `/categories/${id}/attributes`, {
+    items,
+    expectedItems
+  });
