@@ -80,98 +80,107 @@ async function save() {
 onMounted(load);
 </script>
 <template>
-  <el-card shadow="never">
-    <div class="heading">
-      <h2>SKU 管理</h2>
-      <p>维护零售价、条码和履约尺寸；新增规格请在 SPU 管理中操作。</p>
-    </div>
-    <el-form inline @submit.prevent="search">
-      <el-form-item label="关键词"
-        ><el-input
-          v-model="filters.keyword"
-          placeholder="商品名 / SKU 编码 / 条码"
-          clearable
-          @keyup.enter="search"
-      /></el-form-item>
-      <el-form-item label="状态"
-        ><el-select
-          v-model="filters.status"
-          clearable
-          style="width: 140px"
-          placeholder="全部状态"
-          ><el-option label="启用" :value="1" /><el-option
-            label="停用"
-            :value="0" /></el-select
-      ></el-form-item>
-      <el-form-item
-        ><el-button type="primary" @click="search">查询</el-button
-        ><el-button
-          @click="
-            filters.keyword = '';
-            filters.status = undefined;
-            search();
-          "
-          >重置</el-button
-        ></el-form-item
+  <div class="pms-page">
+    <el-card shadow="never" class="query-card">
+      <el-form inline @submit.prevent="search">
+        <el-form-item label="关键词"
+          ><el-input
+            v-model="filters.keyword"
+            placeholder="商品名 / SKU 编码 / 条码"
+            clearable
+            @keyup.enter="search"
+        /></el-form-item>
+        <el-form-item label="状态"
+          ><el-select
+            v-model="filters.status"
+            clearable
+            style="width: 140px"
+            placeholder="全部状态"
+            ><el-option label="启用" :value="1" /><el-option
+              label="停用"
+              :value="0" /></el-select
+        ></el-form-item>
+        <el-form-item
+          ><el-button type="primary" @click="search">查询</el-button
+          ><el-button
+            @click="
+              filters.keyword = '';
+              filters.status = undefined;
+              search();
+            "
+            >重置</el-button
+          ></el-form-item
+        >
+      </el-form>
+    </el-card>
+    <el-card shadow="never" class="content-card">
+      <div class="heading">
+        <h2>SKU 管理</h2>
+        <p>维护零售价、条码和履约尺寸；新增规格请在 SPU 管理中操作。</p>
+      </div>
+
+      <el-alert v-if="error" :title="error" type="error" :closable="false" />
+      <el-table
+        v-loading="loading"
+        :data="rows"
+        :row-key="row => String(row.sku.skuId)"
       >
-    </el-form>
-    <el-alert v-if="error" :title="error" type="error" :closable="false" />
-    <el-table
-      v-loading="loading"
-      :data="rows"
-      :row-key="row => String(row.sku.skuId)"
-    >
-      <el-table-column
-        prop="productName"
-        label="所属 SPU"
-        min-width="160"
-      /><el-table-column prop="sku.skuCode" label="SKU 编码" min-width="140" />
-      <el-table-column label="规格" min-width="180"
-        ><template #default="{ row }">{{
-          row.sku.specText || "默认规格"
-        }}</template></el-table-column
-      >
-      <el-table-column
-        prop="sku.barcode"
-        label="条码"
-        min-width="140"
-      /><el-table-column
-        prop="sku.retailPrice"
-        label="零售价"
-        width="120"
-      /><el-table-column prop="sku.currencyCode" label="币种" width="90" />
-      <el-table-column label="状态" width="100"
-        ><template #default="{ row }"
-          ><el-tag :type="row.sku.status === 1 ? 'success' : 'info'">{{
-            row.sku.status === 1 ? "启用" : "停用"
-          }}</el-tag></template
-        ></el-table-column
-      >
-      <el-table-column label="操作" width="150"
-        ><template #default="{ row }"
-          ><el-button type="primary" link @click="edit(row as SkuRow)"
-            >编辑</el-button
+        <el-table-column
+          prop="productName"
+          label="所属 SPU"
+          min-width="160"
+        /><el-table-column
+          prop="sku.skuCode"
+          label="SKU 编码"
+          min-width="140"
+        />
+        <el-table-column label="规格" min-width="180"
+          ><template #default="{ row }">{{
+            row.sku.specText || "默认规格"
+          }}</template></el-table-column
+        >
+        <el-table-column
+          prop="sku.barcode"
+          label="条码"
+          min-width="140"
+        /><el-table-column
+          prop="sku.retailPrice"
+          label="零售价"
+          width="120"
+        /><el-table-column prop="sku.currencyCode" label="币种" width="90" />
+        <el-table-column label="状态" width="100"
+          ><template #default="{ row }"
+            ><el-tag :type="row.sku.status === 1 ? 'success' : 'info'">{{
+              row.sku.status === 1 ? "启用" : "停用"
+            }}</el-tag></template
+          ></el-table-column
+        >
+        <el-table-column label="操作" width="150"
+          ><template #default="{ row }"
+            ><el-button type="primary" link @click="edit(row as SkuRow)"
+              >编辑</el-button
+            ></template
+          ></el-table-column
+        >
+        <template #empty
+          ><el-empty description="暂无 SKU，在 SPU 管理中创建商品"
+            ><el-button @click="router.push('/pms/products')"
+              >前往 SPU 管理</el-button
+            ></el-empty
           ></template
-        ></el-table-column
-      >
-      <template #empty
-        ><el-empty description="暂无 SKU，在 SPU 管理中创建商品"
-          ><el-button @click="router.push('/pms/products')"
-            >前往 SPU 管理</el-button
-          ></el-empty
-        ></template
-      >
-    </el-table>
-    <el-pagination
-      v-model:current-page="filters.pageNum"
-      v-model:page-size="filters.pageSize"
-      :total="total"
-      :page-sizes="[20, 50, 100]"
-      layout="total, sizes, prev, pager, next"
-      class="pagination"
-      @current-change="load"
-      @size-change="search"
-    />
+        >
+      </el-table>
+      <el-pagination
+        v-model:current-page="filters.pageNum"
+        v-model:page-size="filters.pageSize"
+        :total="total"
+        :page-sizes="[20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+        class="pagination"
+        @current-change="load"
+        @size-change="search"
+      />
+    </el-card>
     <el-dialog
       v-model="dialog"
       title="编辑 SKU"
@@ -242,9 +251,23 @@ onMounted(load);
         ></template
       >
     </el-dialog>
-  </el-card>
+  </div>
 </template>
 <style scoped>
+.query-card {
+  margin-bottom: 16px;
+}
+
+.query-card :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.query-card :deep(.el-form) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 0;
+}
+
 .heading {
   margin-bottom: 24px;
 }

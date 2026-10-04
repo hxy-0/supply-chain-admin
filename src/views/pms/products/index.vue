@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
-import SpecificationsEditor from "./SpecificationsEditor.vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { signatures, type Axis } from "./specifications";
+import type { PageResult } from "@/api/tms";
+import { categoryOptions } from "../category-options";
 import {
   ElMessage,
   ElMessageBox,
@@ -15,6 +17,7 @@ import {
   getProducts,
   saveProduct,
   pmsRequest,
+  type Id,
   type Brand,
   type Category,
   type Product,
@@ -40,14 +43,9 @@ const categories = ref<Category[]>([]);
 const brands = ref<Brand[]>([]);
 const optionError = ref("");
 const listError = ref("");
-const leaves = computed(() =>
-  categories.value.filter(
-    category =>
-      category.showStatus === 1 &&
-      !categories.value.some(
-        child => String(child.parentCid) === String(category.catId)
-      )
-  )
+const categoryTree = computed(() => categoryOptions(categories.value));
+const enabledCategoryTree = computed(() =>
+  categoryOptions(categories.value, { enabledOnly: true })
 );
 const enabledBrands = computed(() =>
   brands.value.filter(brand => brand.status === 1)
@@ -158,6 +156,8 @@ function reset() {
   void loadProducts();
 }
 function create() {
+  salesAxes.value = [];
+  void loadSalesAttributes();
   specificationsDirty.value = false;
   detail.value = undefined;
   skuDetails.value = [];
@@ -264,6 +264,138 @@ function formatTime(timestamp?: number) {
     ? new Date(Number(timestamp)).toLocaleString("zh-CN", { hour12: false })
     : "—";
 }
+interface SalesAttribute {
+  attributeId: Id;
+  name: string;
+  inputType: number;
+  status: number;
+}
+interface SalesValue {
+  attributeValueId: Id;
+  valueName: string;
+  status: number;
+}
+const attributes = ref<SalesAttribute[]>([]);
+const salesValues = reactive<Record<string, SalesValue[]>>({});
+const salesAxes = ref<Axis[]>([]);
+watch(
+  salesAxes,
+  () => {
+    specificationsDirty.value = true;
+  },
+  { deep: true, flush: "sync" }
+);
+const salesError = ref("");
+const masterVisible = ref(false);
+const masterSaving = ref(false);
+const masterRef = ref<FormInstance>();
+const master = reactive({
+  attributeId: undefined as Id | undefined,
+  code: "",
+  name: ""
+});
+async function loadSalesAttributes() {
+  salesError.value = "";
+  try {
+    const result: SalesAttribute[] = [];
+    let pageNum = 1;
+    while (true) {
+      const page = await pmsRequest<PageResult<SalesAttribute>>(
+        "get",
+        "/attributes",
+        undefined,
+        { pageNum, pageSize: 100, status: 1 }
+      );
+      result.push(...page.records);
+      if (!page.records.length || result.length >= page.total) break;
+      pageNum++;
+    }
+    attributes.value = result.filter(a => a.inputType !== 3);
+  } catch (e) {
+    salesError.value = e.message;
+  }
+}
+async function loadSalesValues(axis: Axis) {
+  axis.valueIds = [];
+  try {
+    const id = String(axis.attributeId);
+    salesValues[id] = (
+      await pmsRequest<SalesValue[]>("get", `/attributes/${id}/salesValues`)
+    ).filter(v => v.status === 1);
+  } catch (e) {
+    ElMessage.error(e.message);
+  }
+}
+function generateSkus() {
+  try {
+    const result = signatures(salesAxes.value);
+    const selections = salesAxes.value.map((axis, index) => ({
+      ...axis,
+      sortOrder: index
+    }));
+    const skus: ProductCommand["skus"] = result.map((signature, index) => ({
+      specSignature: signature,
+      specText: signature
+        .split(";")
+        .filter(Boolean)
+        .map(pair => {
+          const [id, value] = pair.split("=");
+          return `${attributes.value.find(a => String(a.attributeId) === id)?.name}: ${salesValues[id]?.find(v => String(v.attributeValueId) === value)?.valueName}`;
+        })
+        .join(" / "),
+      retailPrice: 0,
+      currencyCode: "CNY",
+      status: "1",
+      isDefault: index === 0,
+      images: []
+    }));
+    form.salesAttributes = selections;
+    form.skus = skus;
+    specificationsDirty.value = false;
+  } catch (e) {
+    ElMessage.error(e.message);
+  }
+}
+function createMaster(attributeId?: Id) {
+  Object.assign(master, { attributeId, code: "", name: "" });
+  masterVisible.value = true;
+}
+async function saveMaster() {
+  if (!(await masterRef.value?.validate().catch(() => false))) return;
+  masterSaving.value = true;
+  try {
+    if (master.attributeId) {
+      await pmsRequest("post", "/attributes/salesValues", {
+        attributeId: master.attributeId,
+        valueCode: master.code.trim(),
+        valueName: master.name.trim(),
+        status: "1",
+        sortOrder: 0
+      });
+      salesValues[String(master.attributeId)] = (
+        await pmsRequest<SalesValue[]>(
+          "get",
+          `/attributes/${master.attributeId}/salesValues`
+        )
+      ).filter(v => v.status === 1);
+    } else {
+      await pmsRequest("post", "/attributes", {
+        attributeCode: master.code.trim(),
+        name: master.name.trim(),
+        inputType: 2,
+        status: "1"
+      });
+      await loadSalesAttributes();
+    }
+    masterVisible.value = false;
+    ElMessage.success("已保存");
+  } catch (e) {
+    ElMessage.error(e.message);
+  } finally {
+    masterSaving.value = false;
+  }
+}
+
 onMounted(() => {
   void loadProducts();
   void loadOptions();
@@ -272,25 +404,7 @@ onMounted(() => {
 
 <template>
   <div class="product-page">
-    <el-card shadow="never">
-      <div class="page-heading">
-        <div>
-          <h2>SPU 管理</h2>
-          <p>维护商品资料、SKU 零售价与销售状态</p>
-        </div>
-        <el-button type="primary" :disabled="!!optionError" @click="create"
-          >新增商品</el-button
-        >
-      </div>
-      <el-alert
-        v-if="optionError"
-        type="error"
-        :closable="false"
-        class="error-alert"
-      >
-        分类或品牌加载失败：{{ optionError }}
-        <el-button link type="primary" @click="loadOptions">重试</el-button>
-      </el-alert>
+    <el-card shadow="never" class="query-card">
       <el-form inline :model="filters" @submit.prevent="search">
         <el-form-item label="关键词"
           ><el-input
@@ -300,20 +414,15 @@ onMounted(() => {
             @keyup.enter="search"
         /></el-form-item>
         <el-form-item label="分类">
-          <el-select
+          <el-cascader
             v-model="filters.categoryId"
+            :options="categoryTree"
+            :props="{ emitPath: false }"
             placeholder="全部分类"
             filterable
             clearable
-            class="filter-select"
-          >
-            <el-option
-              v-for="category in categories"
-              :key="category.catId"
-              :label="category.name"
-              :value="category.catId"
-            />
-          </el-select>
+            class="category-select"
+          />
         </el-form-item>
         <el-form-item label="品牌">
           <el-select
@@ -351,6 +460,27 @@ onMounted(() => {
           ><el-button @click="reset">重置</el-button></el-form-item
         >
       </el-form>
+    </el-card>
+    <el-card shadow="never" class="content-card">
+      <div class="page-heading">
+        <div>
+          <h2>SPU 管理</h2>
+          <p>维护商品资料、SKU 零售价与销售状态</p>
+        </div>
+        <el-button type="primary" :disabled="!!optionError" @click="create"
+          >新增商品</el-button
+        >
+      </div>
+      <el-alert
+        v-if="optionError"
+        type="error"
+        :closable="false"
+        class="error-alert"
+      >
+        分类或品牌加载失败：{{ optionError }}
+        <el-button link type="primary" @click="loadOptions">重试</el-button>
+      </el-alert>
+
       <el-alert
         v-if="listError"
         :title="listError"
@@ -492,30 +622,14 @@ onMounted(() => {
           ></el-col>
           <el-col :span="12"
             ><el-form-item label="末级分类" prop="categoryId">
-              <el-select
+              <el-cascader
                 v-model="form.categoryId"
+                :options="enabledCategoryTree"
+                :props="{ emitPath: false }"
                 filterable
                 placeholder="请选择末级分类"
                 class="full-width"
-              >
-                <el-option
-                  v-if="
-                    detail &&
-                    !leaves.some(
-                      c => String(c.catId) === String(form.categoryId)
-                    )
-                  "
-                  :label="detail.categoryName || String(form.categoryId)"
-                  :value="form.categoryId!"
-                  disabled
-                />
-                <el-option
-                  v-for="category in leaves"
-                  :key="category.catId"
-                  :label="category.name"
-                  :value="category.catId"
-                />
-              </el-select> </el-form-item
+              /> </el-form-item
           ></el-col>
           <el-col :span="12"
             ><el-form-item label="品牌">
@@ -573,17 +687,96 @@ onMounted(() => {
           ><el-input v-model="form.description" type="textarea" :rows="3"
         /></el-form-item>
         <el-divider content-position="left">SKU 与零售价</el-divider>
-        <SpecificationsEditor
-          v-if="!form.productId && !readonly"
-          @changed="specificationsDirty = true"
-          @generated="
-            (axes, skus) => {
-              form.salesAttributes = axes;
-              specificationsDirty = false;
-              form.skus = skus;
-            }
-          "
-        />
+
+        <div v-if="!form.productId && !readonly" class="specifications">
+          <el-alert
+            v-if="salesError"
+            :title="salesError"
+            type="error"
+            :closable="false"
+          />
+          <p>
+            选择销售属性及预设值，生成 SKU
+            后逐项填写编码和零售价。重新生成会重置下表输入。
+          </p>
+          <div v-for="(axis, index) in salesAxes" :key="index" class="axis">
+            <el-select
+              v-model="axis.attributeId"
+              filterable
+              placeholder="销售属性"
+              @change="loadSalesValues(axis)"
+              ><el-option
+                v-for="attribute in attributes"
+                :key="attribute.attributeId"
+                :label="attribute.name"
+                :value="attribute.attributeId"
+            /></el-select>
+            <el-select
+              v-model="axis.valueIds"
+              multiple
+              filterable
+              placeholder="选择属性值"
+              ><el-option
+                v-for="value in salesValues[String(axis.attributeId)] || []"
+                :key="value.attributeValueId"
+                :label="value.valueName"
+                :value="value.attributeValueId"
+            /></el-select>
+            <el-button
+              :disabled="!axis.attributeId"
+              @click="createMaster(axis.attributeId)"
+              >添加属性值</el-button
+            ><el-button @click="salesAxes.splice(index, 1)">移除</el-button>
+          </div>
+          <el-button @click="salesAxes.push({ attributeId: '', valueIds: [] })"
+            >添加销售属性</el-button
+          ><el-button @click="createMaster()">新增属性</el-button
+          ><el-button type="primary" @click="generateSkus">生成 SKU</el-button>
+          <el-dialog
+            v-model="masterVisible"
+            :title="master.attributeId ? '新增属性值' : '新增销售属性'"
+            width="min(500px,90vw)"
+            append-to-body
+            destroy-on-close
+            :close-on-click-modal="false"
+            :close-on-press-escape="!masterSaving"
+            :show-close="!masterSaving"
+          >
+            <el-form
+              ref="masterRef"
+              :model="master"
+              label-width="80px"
+              :disabled="masterSaving"
+              ><el-form-item
+                label="编码"
+                prop="code"
+                :rules="[
+                  { required: true, whitespace: true, message: '请输入编码' }
+                ]"
+                ><el-input v-model="master.code" maxlength="64" /></el-form-item
+              ><el-form-item
+                label="名称"
+                prop="name"
+                :rules="[
+                  { required: true, whitespace: true, message: '请输入名称' }
+                ]"
+                ><el-input v-model="master.name" maxlength="64" /></el-form-item
+            ></el-form>
+            <template #footer
+              ><el-button
+                :disabled="masterSaving"
+                @click="masterVisible = false"
+                >取消</el-button
+              ><el-button
+                type="primary"
+                :loading="masterSaving"
+                @click="saveMaster"
+                >保存</el-button
+              ></template
+            >
+          </el-dialog>
+        </div>
+
         <el-alert
           v-if="hasSpecifications && !readonly"
           title="此处编辑 SPU 基本资料，规格及价格在 SKU 管理中维护。"
@@ -720,6 +913,20 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.query-card {
+  margin-bottom: 16px;
+}
+
+.query-card :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.query-card :deep(.el-form) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 0;
+}
+
 .page-heading {
   display: flex;
   align-items: center;
@@ -736,6 +943,10 @@ onMounted(() => {
 .page-heading p {
   margin: 6px 0 0;
   color: var(--el-text-color-secondary);
+}
+
+.category-select {
+  width: 260px;
 }
 
 .filter-select {
@@ -771,5 +982,24 @@ onMounted(() => {
 
 .full-width {
   width: 100%;
+}
+
+.specifications {
+  margin-bottom: 20px;
+}
+
+.specifications p {
+  color: var(--el-text-color-secondary);
+}
+
+.axis {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.axis .el-select {
+  flex: 1;
+  min-width: 0;
 }
 </style>

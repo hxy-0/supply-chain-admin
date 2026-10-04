@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox, type FormInstance } from "element-plus";
 import { getCategories, pmsRequest, type Category, type Id } from "@/api/pms";
+import { categoryOptions } from "../category-options";
 defineOptions({ name: "PmsCategories" });
 interface CategoryNode extends Category {
   children?: CategoryNode[];
@@ -56,11 +57,10 @@ const nodes = computed(() => {
   }
   return roots;
 });
-const parents = computed(() =>
-  items.value.filter(
-    c => Number(c.catLevel) < 3 && String(c.catId) !== String(form.catId)
-  )
-);
+const parentOptions = computed(() => [
+  { value: 0, label: "无（一级分类）" },
+  ...categoryOptions(items.value, { maxLevel: 2, excludeId: form.catId })
+]);
 async function load() {
   loading.value = true;
   failure.value = "";
@@ -116,72 +116,82 @@ async function remove(row: Category) {
 onMounted(load);
 </script>
 <template>
-  <el-card shadow="never">
-    <div class="heading">
-      <div>
-        <h2>分类</h2>
-        <p>三级分类树，SPU 只能关联末级分类</p>
+  <div class="pms-page">
+    <el-card shadow="never" class="query-card">
+      <el-form inline @submit.prevent
+        ><el-form-item label="分类名称"
+          ><el-input
+            v-model="keyword"
+            clearable
+            placeholder="搜索分类及父级路径" /></el-form-item
+        ><el-form-item
+          ><el-button @click="load">刷新</el-button></el-form-item
+        ></el-form
+      >
+    </el-card>
+    <el-card shadow="never" class="content-card">
+      <div class="heading">
+        <div>
+          <h2>分类</h2>
+          <p>三级分类树，SPU 只能关联末级分类</p>
+        </div>
+        <el-button type="primary" @click="edit()">新增一级分类</el-button>
       </div>
-      <el-button type="primary" @click="edit()">新增一级分类</el-button>
-    </div>
-    <el-form inline @submit.prevent
-      ><el-form-item label="分类名称"
-        ><el-input
-          v-model="keyword"
-          clearable
-          placeholder="搜索分类及父级路径" /></el-form-item
-      ><el-form-item
-        ><el-button @click="load">刷新</el-button></el-form-item
-      ></el-form
-    >
-    <el-alert v-if="failure" :title="failure" type="error" :closable="false" />
-    <el-table
-      v-loading="loading"
-      :data="nodes"
-      row-key="catId"
-      :tree-props="{ children: 'children' }"
-      :default-expand-all="!!keyword"
-    >
-      <el-table-column
-        prop="name"
-        label="分类名称"
-        min-width="260"
-      /><el-table-column
-        prop="catId"
-        label="分类 ID"
-        width="120"
-      /><el-table-column
-        prop="catLevel"
-        label="层级"
-        width="90"
-      /><el-table-column
-        prop="productUnit"
-        label="商品单位"
-        min-width="120"
-      /><el-table-column prop="sort" label="排序" width="90" />
-      <el-table-column label="状态" width="100"
-        ><template #default="{ row }"
-          ><el-tag :type="row.showStatus === 1 ? 'success' : 'info'">{{
-            row.showStatus === 1 ? "显示" : "隐藏"
-          }}</el-tag></template
-        ></el-table-column
+
+      <el-alert
+        v-if="failure"
+        :title="failure"
+        type="error"
+        :closable="false"
+      />
+      <el-table
+        v-loading="loading"
+        :data="nodes"
+        row-key="catId"
+        :tree-props="{ children: 'children' }"
+        :default-expand-all="!!keyword"
       >
-      <el-table-column label="操作" width="230"
-        ><template #default="{ row }"
-          ><el-button link type="primary" @click="edit(row as Category)"
-            >编辑</el-button
-          ><el-button
-            v-if="row.catLevel < 3"
-            link
-            type="primary"
-            @click="edit(undefined, row as Category)"
-            >添加子分类</el-button
-          ><el-button link type="danger" @click="remove(row as Category)"
-            >删除</el-button
-          ></template
-        ></el-table-column
-      >
-    </el-table>
+        <el-table-column
+          prop="name"
+          label="分类名称"
+          min-width="260"
+        /><el-table-column
+          prop="catId"
+          label="分类 ID"
+          width="120"
+        /><el-table-column
+          prop="catLevel"
+          label="层级"
+          width="90"
+        /><el-table-column
+          prop="productUnit"
+          label="商品单位"
+          min-width="120"
+        /><el-table-column prop="sort" label="排序" width="90" />
+        <el-table-column label="状态" width="100"
+          ><template #default="{ row }"
+            ><el-tag :type="row.showStatus === 1 ? 'success' : 'info'">{{
+              row.showStatus === 1 ? "显示" : "隐藏"
+            }}</el-tag></template
+          ></el-table-column
+        >
+        <el-table-column label="操作" width="230"
+          ><template #default="{ row }"
+            ><el-button link type="primary" @click="edit(row as Category)"
+              >编辑</el-button
+            ><el-button
+              v-if="row.catLevel < 3"
+              link
+              type="primary"
+              @click="edit(undefined, row as Category)"
+              >添加子分类</el-button
+            ><el-button link type="danger" @click="remove(row as Category)"
+              >删除</el-button
+            ></template
+          ></el-table-column
+        >
+      </el-table>
+    </el-card>
     <el-dialog
       v-model="visible"
       :title="form.catId ? '编辑分类' : '新增分类'"
@@ -206,13 +216,14 @@ onMounted(load);
           ><el-input v-model="form.name" maxlength="50"
         /></el-form-item>
         <el-form-item label="父分类"
-          ><el-select v-model="form.parentCid" filterable style="width: 100%"
-            ><el-option label="无（一级分类）" :value="0" /><el-option
-              v-for="parent in parents"
-              :key="parent.catId"
-              :label="`${parent.name}（${parent.catId}）`"
-              :value="parent.catId" /></el-select
-        ></el-form-item>
+          ><el-cascader
+            v-model="form.parentCid"
+            :options="parentOptions"
+            :props="{ emitPath: false, checkStrictly: true }"
+            filterable
+            placeholder="请选择父分类"
+            class="parent-select"
+        /></el-form-item>
         <el-form-item label="商品单位"
           ><el-input v-model="form.productUnit" maxlength="50"
         /></el-form-item>
@@ -236,9 +247,27 @@ onMounted(load);
         ></template
       >
     </el-dialog>
-  </el-card>
+  </div>
 </template>
 <style scoped>
+.parent-select {
+  width: 100%;
+}
+
+.query-card {
+  margin-bottom: 16px;
+}
+
+.query-card :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.query-card :deep(.el-form) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 0;
+}
+
 .heading {
   display: flex;
   align-items: center;

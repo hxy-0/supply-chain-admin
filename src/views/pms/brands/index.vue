@@ -132,89 +132,103 @@ async function remove(row: Brand) {
 onMounted(load);
 </script>
 <template>
-  <el-card shadow="never">
-    <div class="heading">
-      <div>
-        <h2>品牌管理</h2>
-        <p>维护独立品牌资料与启用状态</p>
+  <div class="pms-page">
+    <el-card shadow="never" class="query-card">
+      <el-form inline @submit.prevent="search">
+        <el-form-item label="关键词"
+          ><el-input
+            v-model="query.keyword"
+            clearable
+            placeholder="品牌名称 / 编码"
+            @keyup.enter="search"
+        /></el-form-item>
+        <el-form-item label="状态"
+          ><el-select
+            v-model="query.status"
+            clearable
+            placeholder="全部状态"
+            style="width: 140px"
+            ><el-option label="启用" :value="1" /><el-option
+              label="停用"
+              :value="0" /></el-select
+        ></el-form-item>
+        <el-form-item
+          ><el-button type="primary" @click="search">查询</el-button
+          ><el-button
+            @click="
+              query.keyword = '';
+              query.status = undefined;
+              search();
+            "
+            >重置</el-button
+          ></el-form-item
+        >
+      </el-form>
+    </el-card>
+    <el-card shadow="never" class="content-card">
+      <div class="heading">
+        <div>
+          <h2>品牌管理</h2>
+          <p>维护独立品牌资料与启用状态</p>
+        </div>
+        <el-button type="primary" @click="edit()">新增品牌</el-button>
       </div>
-      <el-button type="primary" @click="edit()">新增品牌</el-button>
-    </div>
-    <el-form inline @submit.prevent="search">
-      <el-form-item label="关键词"
-        ><el-input
-          v-model="query.keyword"
-          clearable
-          placeholder="品牌名称 / 编码"
-          @keyup.enter="search"
-      /></el-form-item>
-      <el-form-item label="状态"
-        ><el-select
-          v-model="query.status"
-          clearable
-          placeholder="全部状态"
-          style="width: 140px"
-          ><el-option label="启用" :value="1" /><el-option
-            label="停用"
-            :value="0" /></el-select
-      ></el-form-item>
-      <el-form-item
-        ><el-button type="primary" @click="search">查询</el-button
-        ><el-button
-          @click="
-            query.keyword = '';
-            query.status = undefined;
-            search();
-          "
-          >重置</el-button
-        ></el-form-item
-      >
-    </el-form>
-    <el-alert v-if="failure" :title="failure" type="error" :closable="false" />
-    <el-table v-loading="loading" :data="rows" row-key="brandId">
-      <el-table-column
-        prop="brandCode"
-        label="品牌编码"
-        min-width="140"
-      /><el-table-column
-        prop="name"
-        label="品牌名称"
-        min-width="160"
-      /><el-table-column prop="englishName" label="英文名称" min-width="160" />
-      <el-table-column
-        prop="websiteUrl"
-        label="官网"
-        min-width="180"
-        show-overflow-tooltip
+
+      <el-alert
+        v-if="failure"
+        :title="failure"
+        type="error"
+        :closable="false"
       />
-      <el-table-column label="状态" width="100"
-        ><template #default="{ row }"
-          ><el-tag :type="row.status === 1 ? 'success' : 'info'">{{
-            row.status === 1 ? "启用" : "停用"
-          }}</el-tag></template
-        ></el-table-column
-      >
-      <el-table-column prop="sortOrder" label="排序" width="90" />
-      <el-table-column label="操作" width="150"
-        ><template #default="{ row }"
-          ><el-button link type="primary" @click="edit(row as Brand)"
-            >编辑</el-button
-          ><el-button link type="danger" @click="remove(row as Brand)"
-            >删除</el-button
-          ></template
-        ></el-table-column
-      >
-    </el-table>
-    <el-pagination
-      v-model:current-page="query.pageNum"
-      v-model:page-size="query.pageSize"
-      :total="total"
-      :page-sizes="[20, 50, 100]"
-      layout="total, sizes, prev, pager, next"
-      class="pagination"
-      @current-change="load"
-      @size-change="search"
-    />
+      <el-table v-loading="loading" :data="rows" row-key="brandId">
+        <el-table-column
+          prop="brandCode"
+          label="品牌编码"
+          min-width="140"
+        /><el-table-column
+          prop="name"
+          label="品牌名称"
+          min-width="160"
+        /><el-table-column
+          prop="englishName"
+          label="英文名称"
+          min-width="160"
+        />
+        <el-table-column
+          prop="websiteUrl"
+          label="官网"
+          min-width="180"
+          show-overflow-tooltip
+        />
+        <el-table-column label="状态" width="100"
+          ><template #default="{ row }"
+            ><el-tag :type="row.status === 1 ? 'success' : 'info'">{{
+              row.status === 1 ? "启用" : "停用"
+            }}</el-tag></template
+          ></el-table-column
+        >
+        <el-table-column prop="sortOrder" label="排序" width="90" />
+        <el-table-column label="操作" width="150"
+          ><template #default="{ row }"
+            ><el-button link type="primary" @click="edit(row as Brand)"
+              >编辑</el-button
+            ><el-button link type="danger" @click="remove(row as Brand)"
+              >删除</el-button
+            ></template
+          ></el-table-column
+        >
+      </el-table>
+      <el-pagination
+        v-model:current-page="query.pageNum"
+        v-model:page-size="query.pageSize"
+        :total="total"
+        :page-sizes="[20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+        class="pagination"
+        @current-change="load"
+        @size-change="search"
+      />
+    </el-card>
     <el-dialog
       v-model="visible"
       :title="form.brandId ? '编辑品牌' : '新增品牌'"
@@ -266,9 +280,23 @@ onMounted(load);
         ></template
       >
     </el-dialog>
-  </el-card>
+  </div>
 </template>
 <style scoped>
+.query-card {
+  margin-bottom: 16px;
+}
+
+.query-card :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.query-card :deep(.el-form) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 0;
+}
+
 .heading {
   display: flex;
   align-items: center;
