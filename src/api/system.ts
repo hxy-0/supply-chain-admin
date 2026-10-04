@@ -148,3 +148,7 @@ export const saveSystemMenu = (id: number | undefined, data: object) =>
   );
 export const deleteSystemMenu = (id: number) =>
   systemRequest("delete", `/menus/${id}`);
+
+export const reorderSystemMenus = (
+  groups: { parentId: number; ids: number[]; expectedIds: number[] }[]
+) => systemRequest("put", "/menus/order", { groups });
