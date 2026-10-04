@@ -78,7 +78,7 @@ const rules: FormRules = {
       trigger: "blur"
     }
   ],
-  categoryId: [{ required: true, message: "请选择末级分类", trigger: "change" }]
+  categoryId: [{ required: true, message: "请选择商品类别", trigger: "change" }]
 };
 function emptyForm(): ProductCommand {
   return {
@@ -621,13 +621,13 @@ onMounted(() => {
               ><el-input v-model="form.name" maxlength="255" /></el-form-item
           ></el-col>
           <el-col :span="12"
-            ><el-form-item label="末级分类" prop="categoryId">
+            ><el-form-item label="商品类别" prop="categoryId">
               <el-cascader
                 v-model="form.categoryId"
                 :options="enabledCategoryTree"
                 :props="{ emitPath: false }"
                 filterable
-                placeholder="请选择末级分类"
+                placeholder="请选择商品类别"
                 class="full-width"
               /> </el-form-item
           ></el-col>
