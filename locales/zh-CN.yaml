@@ -70,6 +70,7 @@ panel:
 menus:
   pureHome: 首页
   pureLogin: 登录
+  pureOAuthCallback: 正在登录
   pureEmpty: 无Layout页
   pureTable: 表格
   pureSysManagement: 系统管理
@@ -225,7 +226,15 @@ login:
   pureRegister: 注册
   pureWeChatLogin: 微信登录
   pureAlipayLogin: 支付宝登录
-  pureFeishuLogin: 飞书登录
+  pureFeishuLogin: 飞书扫码登录
+  pureFeishuQrTitle: 飞书扫码登录
+  pureFeishuQrHint: 打开手机飞书扫一扫，在手机上确认登录
+  pureFeishuQrLoading: 正在加载二维码…
+  pureFeishuQrRedirecting: 扫码成功，正在完成登录…
+  pureFeishuQrLoadFailed: 二维码加载失败，请检查网络后刷新重试
+  pureFeishuQrExpired: 二维码已过期，请刷新后重新扫码
+  pureFeishuQrRefresh: 刷新二维码
+  pureFeishuQrBack: 返回账号登录
   pureGitHubLogin: GitHub 登录
   purePhone: 手机号码
   pureSmsVerifyCode: 短信验证码

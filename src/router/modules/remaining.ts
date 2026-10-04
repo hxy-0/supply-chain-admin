@@ -11,6 +11,16 @@ export default [
       showLink: false
     }
   },
+  // OAuth 授权回调中转页：交换令牌期间不回登录页
+  {
+    path: "/oauth/callback",
+    name: "OAuthCallback",
+    component: () => import("@/views/oauth/callback.vue"),
+    meta: {
+      title: $t("menus.pureOAuthCallback"),
+      showLink: false
+    }
+  },
   // 全屏403（无权访问）页面
   {
     path: "/access-denied",

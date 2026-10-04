@@ -15,7 +15,9 @@ function captureCallback() {
     error: params.get("error")
   };
   const historyMode = import.meta.env.VITE_ROUTER_HISTORY || "hash";
-  const loginUrl = historyMode.startsWith("h5") ? "/login" : "/#/login";
+  const loginUrl = historyMode.startsWith("h5")
+    ? "/oauth/callback"
+    : "/#/oauth/callback";
   window.history.replaceState(null, "", loginUrl);
   return result;
 }

@@ -24,56 +24,28 @@ export interface DataInfo<T> {
 }
 
 export const userKey = "user-info";
+/** 历史版本曾把令牌整包写入 cookie；现令牌统一保存在 localStorage，残留的 2KB 令牌 cookie 在写入与登出时清理。 */
 export const TokenKey = "authorized-token";
-/**
- * 通过`multiple-tabs`是否在`cookie`中，判断用户是否已经登录系统，
- * 从而支持多标签页打开已经登录的系统后无需再登录。
- * 浏览器完全关闭后`multiple-tabs`将自动从`cookie`中销毁，
- * 再次打开浏览器需要重新登录系统
- * */
+/** 历史版本的会话标记 cookie；登录态现已只由 localStorage 里的`refreshExpires`判定，残留 cookie 在写入与登出时清理。 */
 export const multipleTabsKey = "multiple-tabs";
 
-/** 获取`token` */
+/** 获取`token`，令牌统一保存在 localStorage 的`user-info`里 */
 export function getToken(): DataInfo<number> {
-  // 此处与`TokenKey`相同，此写法解决初始化时`Cookies`中不存在`TokenKey`报错
-  return Cookies.get(TokenKey)
-    ? JSON.parse(Cookies.get(TokenKey))
-    : storageLocal().getItem(userKey);
+  return storageLocal().getItem<DataInfo<number>>(userKey);
 }
 
 /**
  * @description 设置`token`以及一些必要信息并采用无感刷新`token`方案
- * 无感刷新：后端返回`accessToken`（访问接口使用的`token`）、`refreshToken`（用于调用刷新`accessToken`的接口时所需的`token`，`refreshToken`的过期时间（比如30天）应大于`accessToken`的过期时间（比如2小时））、`expires`（`accessToken`的过期时间）
- * token 存储的有效期跟随 refreshExpires，access token 过期后仍能刷新。
- * 将`avatar`、`username`、`nickname`、`roles`、`permissions`、`refreshToken`、`expires`这七条信息放在key值为`user-info`的localStorage里（利用`multipleTabsKey`当浏览器完全关闭后自动销毁）
+ * 无感刷新：后端返回`accessToken`（访问接口使用的`token`）、`refreshToken`（用于调用刷新`accessToken`的接口时所需的`token`）、`expires`（`accessToken`的过期时间）、`refreshExpires`（`refreshToken`的过期时间）。
+ * 「N 天内免登录」由登录时传给后端的`rememberDays`决定 refresh token 的有效期（refresh 会话保存在后端 Redis 里）；
+ * 登录态只由 localStorage 中`refreshExpires`是否过期判定，不依赖任何 cookie。
  */
 export function setToken(data: DataInfo<number>) {
-  let expires = 0;
   const { accessToken, refreshToken, refreshExpires } = data;
-  const { isRemembered, loginDay } = useUserStoreHook();
-  expires = new Date(data.expires).getTime(); // 毫秒时间戳，兼容升级前的 ISO 字符串。
-  const cookieString = JSON.stringify({
-    accessToken,
-    expires,
-    refreshToken,
-    refreshExpires
-  });
-
-  refreshExpires > 0
-    ? Cookies.set(TokenKey, cookieString, {
-        expires: (refreshExpires - Date.now()) / 86400000
-      })
-    : Cookies.set(TokenKey, cookieString);
-
-  Cookies.set(
-    multipleTabsKey,
-    "true",
-    isRemembered
-      ? {
-          expires: loginDay
-        }
-      : {}
-  );
+  const expires = new Date(data.expires).getTime(); // 毫秒时间戳，兼容升级前的 ISO 字符串。
+  // 清理历史版本写入的令牌与会话标记 cookie。
+  Cookies.remove(TokenKey);
+  Cookies.remove(multipleTabsKey);
 
   function setUserKey({ avatar, username, nickname, roles, permissions }) {
     useUserStoreHook().SET_AVATAR(avatar);

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
 import Motion from "./utils/motion";
-import { consumeGithubCallback } from "@/oauth/githubCallback";
 import { authRequest, completeLogin } from "./utils/authentication";
 import { message } from "@/utils/message";
 import { loginRules } from "./utils/rule";
@@ -12,8 +11,9 @@ import type { FormInstance } from "element-plus";
 import { operates, thirdParty } from "./utils/enums";
 import { useLayout } from "@/layout/hooks/useLayout";
 import { useUserStoreHook } from "@/store/modules/user";
-import { ref, reactive, watch, computed, onMounted } from "vue";
+import { ref, reactive, watch, computed } from "vue";
 import LoginVerification from "./components/LoginVerification.vue";
+import FeishuQrLogin from "./components/FeishuQrLogin.vue";
 import Github from "@/assets/svg/GitHub.svg?component";
 import Wechat from "@/assets/svg/wechat.svg?component";
 import Alipay from "@/assets/svg/alipay.svg?component";
@@ -45,6 +45,7 @@ const thirdPartyLogos: Record<string, Component> = {
 };
 const loginDay = ref(7);
 const loading = ref(false);
+const feishuQrVisible = ref(false);
 const checked = ref(false);
 const disabled = ref(false);
 const ruleFormRef = ref<FormInstance>();
@@ -98,6 +99,10 @@ async function thirdLogin(provider: string) {
   if (loading.value) {
     return;
   }
+  if (provider === "feishu") {
+    feishuQrVisible.value = true;
+    return;
+  }
   loading.value = true;
   try {
     const result = await authRequest<{ authorizationUrl: string }>(
@@ -109,32 +114,6 @@ async function thirdLogin(provider: string) {
     loading.value = false;
   }
 }
-onMounted(async () => {
-  const callback = consumeGithubCallback();
-  if (!callback) {
-    return;
-  }
-  loading.value = true;
-  try {
-    const providerName = callback.provider === "feishu" ? "飞书" : "GitHub";
-    if (callback.error) {
-      throw new Error(`${providerName} 授权已取消或失败，请重试`);
-    }
-    if (!callback.code || !callback.state) {
-      throw new Error(`${providerName} 授权回调无效，请重新登录`);
-    }
-    await completeLogin(
-      await authRequest(`/${callback.provider}/callback`, {
-        code: callback.code,
-        state: callback.state
-      })
-    );
-  } catch (error) {
-    message(error.message, { type: "error" });
-  } finally {
-    loading.value = false;
-  }
-});
 
 watch(checked, bool => {
   useUserStoreHook().SET_ISREMEMBERED(bool);
@@ -211,7 +190,7 @@ watch(loginDay, value => {
           </Motion>
 
           <el-form
-            v-if="currentPage === 0"
+            v-if="currentPage === 0 && !feishuQrVisible"
             ref="ruleFormRef"
             :model="ruleForm"
             :rules="loginRules"
@@ -311,7 +290,11 @@ watch(loginDay, value => {
             </Motion>
           </el-form>
 
-          <Motion v-if="currentPage === 0" :delay="350">
+          <FeishuQrLogin
+            v-if="currentPage === 0 && feishuQrVisible"
+            @back="feishuQrVisible = false"
+          />
+          <Motion v-if="currentPage === 0 && !feishuQrVisible" :delay="350">
             <el-form-item>
               <el-divider class="auth-divider">
                 <p class="text-gray-500 text-xs">

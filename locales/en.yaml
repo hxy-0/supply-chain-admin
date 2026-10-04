@@ -70,6 +70,7 @@ panel:
 menus:
   pureHome: Home
   pureLogin: Login
+  pureOAuthCallback: Signing in
   pureEmpty: Empty Page
   pureTable: Table
   pureSysManagement: System Manage
@@ -225,7 +226,15 @@ login:
   pureRegister: Register
   pureWeChatLogin: WeChat Login
   pureAlipayLogin: Alipay Login
-  pureFeishuLogin: Feishu Login
+  pureFeishuLogin: Sign in with Feishu QR code
+  pureFeishuQrTitle: Scan to sign in with Feishu
+  pureFeishuQrHint: Scan with the Feishu mobile app and confirm on your phone
+  pureFeishuQrLoading: Loading QR code…
+  pureFeishuQrRedirecting: Scan confirmed. Signing you in…
+  pureFeishuQrLoadFailed: Could not load the QR code. Check your connection and try again
+  pureFeishuQrExpired: QR code expired. Refresh it to scan again
+  pureFeishuQrRefresh: Refresh QR code
+  pureFeishuQrBack: Back to account sign-in
   pureGitHubLogin: GitHub Login
   purePhone: Phone
   pureSmsVerifyCode: SMS VerifyCode

@@ -27,7 +27,17 @@ export default async ({ mode }: ConfigEnv): Promise<UserConfigExport> => {
       proxy: {
         "/system": { target: "http://127.0.0.1:8080", changeOrigin: true },
         "/auth": { target: "http://127.0.0.1:8080", changeOrigin: true },
-        "/api": { target: "http://127.0.0.1:8080", changeOrigin: true }
+        // 后端本身就挂载在 /api/** 前缀下的模块：不剥前缀
+        "/api/auth": { target: "http://127.0.0.1:8080", changeOrigin: true },
+        "/api/mp": { target: "http://127.0.0.1:8080", changeOrigin: true },
+        "/api/wechat": { target: "http://127.0.0.1:8080", changeOrigin: true },
+        "/api/drivers": { target: "http://127.0.0.1:8080", changeOrigin: true },
+        // 其余 tms 接口（/carriers、/vehicles、/queue、/monitoring 等）不带 /api 前缀：剥掉
+        "/api": {
+          target: "http://127.0.0.1:8080",
+          changeOrigin: true,
+          rewrite: path => path.replace(/^\/api/, "")
+        }
       },
       // 预热文件以提前转换和缓存结果，降低启动期间的初始页面加载时长并防止转换瀑布
       warmup: {
