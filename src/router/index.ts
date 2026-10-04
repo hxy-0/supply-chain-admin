@@ -3,22 +3,13 @@ import NProgress from "@/utils/progress";
 import { transformI18n } from "@/plugins/i18n";
 import { buildHierarchyTree } from "@/utils/tree";
 import remainingRouter from "./modules/remaining";
-import { useMultiTagsStoreHook } from "@/store/modules/multiTags";
 import { usePermissionStoreHook } from "@/store/modules/permission";
-import {
-  isUrl,
-  openLink,
-  cloneDeep,
-  isAllEmpty,
-  storageLocal
-} from "@pureadmin/utils";
+import { isUrl, openLink, cloneDeep, storageLocal } from "@pureadmin/utils";
 import {
   ascending,
-  getTopMenu,
   initRouter,
   isOneOfArray,
   getHistoryMode,
-  findRouteByPath,
   handleAliveRoute,
   formatTwoStageRoutes,
   formatFlatteningRoutes
@@ -30,17 +21,20 @@ import {
   createRouter
 } from "vue-router";
 import { type DataInfo, userKey, removeToken } from "@/utils/auth";
+import {
+  isRestorablePath,
+  loginDestination,
+  lastPageKey
+} from "./sessionRoute";
+import { message } from "@/utils/message";
 
 /** 自动导入全部静态路由，无需再手动引入！匹配 src/router/modules 目录（任何嵌套级别）中具有 .ts 扩展名的所有文件，除了 remaining.ts 文件
  * 如何匹配所有文件请看：https://github.com/mrmlnc/fast-glob#basic-syntax
  * 如何排除文件请看：https://cn.vitejs.dev/guide/features.html#negative-patterns
  */
-const modules: Record<string, any> = import.meta.glob(
-  ["./modules/home.ts", "./modules/pms.ts"],
-  {
-    eager: true
-  }
-);
+const modules: Record<string, any> = import.meta.glob(["./modules/home.ts"], {
+  eager: true
+});
 
 /** 原始静态路由（未做任何处理） */
 const routes = [];
@@ -113,7 +107,7 @@ const whiteList = ["/login", "/oauth/callback"];
 
 const { VITE_HIDE_HOME } = import.meta.env;
 
-router.beforeEach((to: ToRouteType, _from) => {
+router.beforeEach(async (to: ToRouteType, _from) => {
   to.meta.loaded = loadedPaths.has(to.path);
 
   if (!to.meta.loaded) {
@@ -144,9 +138,39 @@ router.beforeEach((to: ToRouteType, _from) => {
   }
   /** 如果已经登录并存在登录信息后不能跳转到路由白名单，而是继续保持在当前页面 */
   function toCorrectRoute() {
-    return whiteList.includes(to.fullPath) ? _from.fullPath : undefined;
+    if (to.path !== "/login") return undefined;
+    return loginDestination(
+      to.query.redirect,
+      storageLocal().getItem(lastPageKey(userInfo?.username || ""))
+    );
   }
   if (sessionValid) {
+    if (
+      usePermissionStoreHook().wholeMenus.length === 0 &&
+      to.path !== "/oauth/callback"
+    ) {
+      try {
+        await initRouter();
+      } catch {
+        message("菜单加载失败，请稍后刷新重试", { type: "error" });
+        NProgress.done();
+        return false;
+      }
+      if (!to.name && router.resolve(to.fullPath).name) return to.fullPath;
+    }
+    if (to.path === "/welcome" && to.redirectedFrom?.path === "/") {
+      const lastPage = storageLocal().getItem<string>(
+        lastPageKey(userInfo.username || "")
+      );
+      if (
+        isRestorablePath(lastPage) &&
+        lastPage !== "/welcome" &&
+        router.resolve(lastPage).name &&
+        router.resolve(lastPage).name !== "PageNotFound"
+      ) {
+        return lastPage;
+      }
+    }
     // 无权限跳转403页面
     if (to.meta?.roles && !isOneOfArray(to.meta?.roles, userInfo?.roles)) {
       return { path: "/error/403" };
@@ -165,43 +189,6 @@ router.beforeEach((to: ToRouteType, _from) => {
         return toCorrectRoute();
       }
     } else {
-      // 刷新
-      if (
-        usePermissionStoreHook().wholeMenus.length === 0 &&
-        to.path !== "/login"
-      ) {
-        initRouter().then((router: Router) => {
-          if (!useMultiTagsStoreHook().getMultiTagsCache) {
-            const { path } = to;
-            const route = findRouteByPath(
-              path,
-              router.options.routes[0].children
-            );
-            getTopMenu(true);
-            // query、params模式路由传参数的标签页不在此处处理
-            if (route && route.meta?.title) {
-              if (isAllEmpty(route.parentId) && route.meta?.backstage) {
-                // 此处为动态顶级路由（目录）
-                const { path, name, meta } = route.children[0];
-                useMultiTagsStoreHook().handleTags("push", {
-                  path,
-                  name,
-                  meta
-                });
-              } else {
-                const { path, name, meta } = route;
-                useMultiTagsStoreHook().handleTags("push", {
-                  path,
-                  name,
-                  meta
-                });
-              }
-            }
-          }
-          // 确保动态路由完全加入路由列表并且不影响静态路由（注意：动态路由刷新时router.beforeEach可能会触发两次，第一次触发动态路由还未完全添加，第二次动态路由才完全添加到路由列表，如果需要在router.beforeEach做一些判断可以在to.name存在的条件下去判断，这样就只会触发一次）
-          if (isAllEmpty(to.name)) router.push(to.fullPath);
-        });
-      }
       return toCorrectRoute();
     }
   } else {
@@ -210,7 +197,11 @@ router.beforeEach((to: ToRouteType, _from) => {
         return true;
       } else {
         removeToken();
-        return { path: "/login" };
+        return {
+          path: "/login",
+          query:
+            to.redirectedFrom?.path === "/" ? {} : { redirect: to.fullPath }
+        };
       }
     } else {
       return true;
@@ -218,7 +209,19 @@ router.beforeEach((to: ToRouteType, _from) => {
   }
 });
 
-router.afterEach(to => {
+router.afterEach((to, _from, failure) => {
+  if (failure) {
+    NProgress.done();
+    return;
+  }
+  const userInfo = storageLocal().getItem<DataInfo<number>>(userKey);
+  if (
+    userInfo?.username &&
+    isRestorablePath(to.fullPath) &&
+    to.name !== "PageNotFound"
+  ) {
+    storageLocal().setItem(lastPageKey(userInfo.username), to.fullPath);
+  }
   loadedPaths.add(to.path);
   NProgress.done();
 });
