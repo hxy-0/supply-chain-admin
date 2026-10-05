@@ -19,6 +19,8 @@ import { useUserStoreHook } from "@/store/modules/user";
 const defaultConfig: AxiosRequestConfig = {
   // 请求超时时间
   timeout: 10000,
+  // 跨源部署时携带 Cookie（GitHub OAuth 浏览器绑定 Cookie 依赖）；后端 CORS 为白名单源 + allowCredentials
+  withCredentials: true,
   headers: {
     Accept: "application/json, text/plain, */*",
     "Content-Type": "application/json",
@@ -66,9 +68,9 @@ class PureHttp {
           "/auth/register",
           "/auth/reset-password",
           "/auth/github/authorize",
-            "/auth/github/callback",
-            "/auth/feishu/authorize",
-            "/auth/feishu/callback",
+          "/auth/github/callback",
+          "/auth/feishu/authorize",
+          "/auth/feishu/callback",
           "/auth/logout"
         ];
         if (whiteList.includes(config.url)) {
