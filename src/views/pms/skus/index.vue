@@ -57,7 +57,7 @@ const filters = reactive({
   productId: route.query.productId
     ? (String(route.query.productId) as Id)
     : undefined,
-  status: undefined,
+  isEnable: undefined,
   pageNum: 1,
   pageSize: 20
 });
@@ -80,7 +80,7 @@ const form = reactive<Sku>({
   specSignature: "",
   retailPrice: 0,
   currencyCode: "CNY",
-  status: 1
+  isEnable: 1
 });
 function search() {
   filters.pageNum = 1;
@@ -155,7 +155,7 @@ onMounted(load);
         /></el-form-item>
         <el-form-item label="状态"
           ><el-select
-            v-model="filters.status"
+            v-model="filters.isEnable"
             clearable
             style="width: 140px"
             placeholder="全部状态"
@@ -168,7 +168,7 @@ onMounted(load);
           ><el-button
             @click="
               filters.keyword = '';
-              filters.status = undefined;
+              filters.isEnable = undefined;
               search();
             "
             >重置</el-button
@@ -178,7 +178,6 @@ onMounted(load);
     </el-card>
     <el-card shadow="never" class="content-card">
       <div class="heading">
-        <h2>SKU 管理</h2>
         <p>维护零售价、条码和履约尺寸；新增规格请在 SPU 管理中操作。</p>
       </div>
 
@@ -213,8 +212,8 @@ onMounted(load);
         /><el-table-column prop="sku.currencyCode" label="币种" width="90" />
         <el-table-column label="状态" width="100"
           ><template #default="{ row }"
-            ><el-tag :type="row.sku.status === 1 ? 'success' : 'info'">{{
-              row.sku.status === 1 ? "启用" : "停用"
+            ><el-tag :type="row.sku.isEnable === 1 ? 'success' : 'info'">{{
+              row.sku.isEnable === 1 ? "启用" : "停用"
             }}</el-tag></template
           ></el-table-column
         >
@@ -294,12 +293,8 @@ onMounted(load);
   margin-bottom: 24px;
 }
 
-.heading h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
 .heading p {
+  margin: 0;
   color: var(--el-text-color-secondary);
 }
 

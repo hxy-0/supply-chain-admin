@@ -36,11 +36,7 @@ export function useDept() {
       label: "状态",
       prop: "status",
       minWidth: 100,
-      cellRenderer: ({ row, props }) => (
-        <el-tag size={props.size} style={tagStyle.value(row.status)}>
-          {row.status === 1 ? "启用" : "停用"}
-        </el-tag>
-      )
+      slot: "status"
     },
     {
       label: "创建时间",
@@ -164,6 +160,7 @@ export function useDept() {
   });
 
   return {
+    tagStyle,
     form,
     loading,
     columns,

@@ -194,7 +194,7 @@ export interface QueueTicketType {
   dailyReset?: boolean;
   sortNo?: number;
   /** 1=启用 0=停用 */
-  status?: number;
+  isEnable?: number;
   extConfig?: string;
   nextSequence?: number;
   createTime?: number;
@@ -214,7 +214,7 @@ export interface QueueConfig {
   /** 最大叫号次数，默认 2 */
   maxCallCount?: number;
   /** 1=启用 0=停用 */
-  status?: number;
+  isEnable?: number;
   remark?: string;
   createTime?: number;
   updateTime?: number;
@@ -284,7 +284,8 @@ export interface QueuePageQuery {
   queueCode?: string;
   queueName?: string;
   sceneCode?: string;
-  status?: number;
+  /** 1=启用 0=停用 */
+  isEnable?: number;
 }
 
 export interface QueueTicketPageQuery {
@@ -335,7 +336,7 @@ function normalizeStatus(
 function normalizeConfig(config: QueueConfig): QueueConfig {
   return {
     ...config,
-    status: normalizeStatus(config.status, CONFIG_STATUS_BY_NAME)
+    isEnable: normalizeStatus(config.isEnable, CONFIG_STATUS_BY_NAME)
   };
 }
 
@@ -451,7 +452,8 @@ export interface Driver {
   idCard: string;
   driverLicense: string;
   driverType: string;
-  status: string;
+  /** 1=启用 0=禁用（P3C is_enable） */
+  isEnable: number;
   qualificationCertificate: string;
   wechatOpenid: string;
   wechatNickname: string;

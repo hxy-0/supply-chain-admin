@@ -20,9 +20,10 @@ export const driverTypes = options(
   ["自有司机", "外协司机", "临时司机"],
   ["OWNED", "CONTRACTED", "TEMPORARY"]
 );
+/** 司机启用状态：1=启用 0=禁用（P3C is_enable） */
 export const driverStatuses = options(
-  ["启用", "禁用"],
-  ["ENABLED", "DISABLED"]
+  ["禁用", "启用"],
+  ["DISABLED", "ENABLED"]
 );
 export const carrierTypes = options(
   ["自有车队", "合同承运商", "临时承运商"],
@@ -65,8 +66,8 @@ export const definitions: Record<
 > = {
   drivers: {
     title: "司机",
-    filters: ["name", "driverType", "status"],
-    defaults: { driverType: 0, status: 0 },
+    filters: ["name", "driverType", "isEnable"],
+    defaults: { driverType: 0, isEnable: 1 },
     fields: [
       { key: "name", label: "姓名", required: true, tableMinWidth: 100 },
       { key: "phone", label: "手机号", required: true, tableMinWidth: 140 },
@@ -78,7 +79,7 @@ export const definitions: Record<
         options: driverTypes
       },
       {
-        key: "status",
+        key: "isEnable",
         label: "状态",
         kind: "select",
         options: driverStatuses,

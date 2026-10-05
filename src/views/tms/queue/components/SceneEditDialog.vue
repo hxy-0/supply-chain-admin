@@ -20,12 +20,12 @@ const newType = (sortNo: number): QueueTicketType => ({
   sequenceLength: 3,
   dailyReset: true,
   sortNo,
-  status: 1
+  isEnable: 1
 });
 watch(open, async value => {
   if (!value) return;
   form.value = {
-    status: 1,
+    isEnable: 1,
     callTimeoutSeconds: 300,
     deferredPosition: 3,
     maxCallCount: 2,
@@ -133,7 +133,7 @@ async function save() {
         ></el-col>
         <el-col :span="8"
           ><el-form-item label="场景状态"
-            ><el-select v-model="form.status"
+            ><el-select v-model="form.isEnable"
               ><el-option label="启用" :value="1" /><el-option
                 label="停用"
                 :value="0" /></el-select></el-form-item
@@ -177,7 +177,7 @@ async function save() {
         <el-table-column label="启用" width="80"
           ><template #default="s"
             ><el-switch
-              v-model="s.row.status"
+              v-model="s.row.isEnable"
               :active-value="1"
               :inactive-value="0" /></template
         ></el-table-column>

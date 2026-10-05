@@ -12,7 +12,7 @@ const props = withDefaults(defineProps<FormProps>(), {
     username: "",
     password: "",
     sex: 2,
-    status: 1,
+    isEnable: 1,
     remark: ""
   })
 });
@@ -108,7 +108,7 @@ defineExpose({ getRef });
       >
         <el-form-item label="用户状态">
           <el-switch
-            v-model="newFormInline.status"
+            v-model="newFormInline.isEnable"
             inline-prompt
             :active-value="1"
             :inactive-value="0"

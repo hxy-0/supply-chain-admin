@@ -31,6 +31,7 @@ defineOptions({
 const formRef = ref();
 const tableRef = ref();
 const {
+  getMenuType,
   form,
   loading,
   columns,
@@ -175,6 +176,20 @@ async function saveOrder() {
           }"
           @selection-change="handleSelectionChange"
         >
+          <template #title="{ row }"
+            ><span class="inline-block mr-1"
+              ><component
+                :is="useRenderIcon(row.icon)"
+                style="padding-top: 1px" /></span
+            ><span>{{ transformI18n(row.title) }}</span></template
+          ><template #menuType="{ row }"
+            ><el-tag
+              :size="size"
+              :type="getMenuType(row.menuType) as any"
+              effect="plain"
+              >{{ getMenuType(row.menuType, true) }}</el-tag
+            ></template
+          >
           <template #operation="{ row }">
             <el-button
               class="reset-margin"

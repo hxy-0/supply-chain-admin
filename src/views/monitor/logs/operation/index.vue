@@ -16,6 +16,7 @@ const formRef = ref();
 const tableRef = ref();
 
 const {
+  tagStyle,
   form,
   loading,
   columns,
@@ -141,7 +142,13 @@ const {
           @selection-change="handleSelectionChange"
           @page-size-change="handleSizeChange"
           @page-current-change="handleCurrentChange"
-        />
+        >
+          <template #status="{ row }">
+            <el-tag :size="size" :style="tagStyle(row.status)">{{
+              row.status === 1 ? "成功" : "失败"
+            }}</el-tag>
+          </template>
+        </pure-table>
       </template>
     </PureTableBar>
   </div>

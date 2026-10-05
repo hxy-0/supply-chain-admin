@@ -77,7 +77,7 @@ const enabledCategoryTree = computed(() =>
   categoryOptions(categories.value, { enabledOnly: true })
 );
 const enabledBrands = computed(() =>
-  brands.value.filter(brand => brand.status === 1)
+  brands.value.filter(brand => brand.isEnable === 1)
 );
 const dialog = ref(false);
 const readonly = ref(false);
@@ -203,7 +203,7 @@ function emptyForm(): ProductCommand {
         specSignature: "",
         retailPrice: 0,
         currencyCode: "CNY",
-        status: 1,
+        isEnable: 1,
         isDefault: true,
         images: []
       }
@@ -297,7 +297,7 @@ async function open(product: Product, view = false) {
       })),
       skus: skuDetails.value.map(item => ({
         ...item.sku,
-        status: item.sku.status,
+        isEnable: item.sku.isEnable,
         images: item.images ?? []
       }))
     });
@@ -305,7 +305,7 @@ async function open(product: Product, view = false) {
       string,
       { attributeId: Id; valueIds: Id[]; sortOrder: number }
     >();
-    const active = skuDetails.value.filter(item => item.sku.status === 1);
+    const active = skuDetails.value.filter(item => item.sku.isEnable === 1);
     for (const item of active.length ? active : skuDetails.value)
       for (const value of item.attributes) {
         const key = String(value.attributeId);
@@ -341,7 +341,7 @@ async function save() {
     return;
   }
   if (templateLoading.value || templateError.value) {
-    ElMessage.warning("请等待分类模板加载完成，失败时请重试");
+    ElMessage.warning("请等待分类属性配置加载完成，失败时请重试");
     return;
   }
   if (form.images.some(image => !image.imageUrl.trim())) {
@@ -423,12 +423,12 @@ onMounted(() => {
             clearable
             @keyup.enter="search"
         /></el-form-item>
-        <el-form-item label="分类">
+        <el-form-item label="商品类别">
           <el-cascader
             v-model="filters.categoryId"
             :options="categoryTree"
             :props="{ emitPath: false }"
-            placeholder="全部分类"
+            placeholder="全部商品类别"
             filterable
             clearable
             class="category-select"
@@ -473,10 +473,7 @@ onMounted(() => {
     </el-card>
     <el-card shadow="never" class="content-card">
       <div class="page-heading">
-        <div>
-          <h2>SPU 管理</h2>
-          <p>维护商品资料、SKU 零售价与销售状态</p>
-        </div>
+        <p>维护商品资料、SKU 零售价与销售状态</p>
         <el-button type="primary" :disabled="!!optionError" @click="create"
           >新增商品</el-button
         >
@@ -487,7 +484,7 @@ onMounted(() => {
         :closable="false"
         class="error-alert"
       >
-        分类或品牌加载失败：{{ optionError }}
+        商品类别或品牌加载失败：{{ optionError }}
         <el-button link type="primary" @click="loadOptions">重试</el-button>
       </el-alert>
 
@@ -521,7 +518,7 @@ onMounted(() => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="categoryName" label="分类" min-width="120" />
+        <el-table-column prop="categoryName" label="商品类别" min-width="120" />
         <el-table-column prop="brandName" label="品牌" min-width="120" />
         <el-table-column prop="skuCount" label="SKU 数量" width="100" />
         <el-table-column label="状态" width="100"
@@ -725,7 +722,7 @@ onMounted(() => {
           :closable="false"
         />
         <el-button v-if="templateError" @click="loadTemplate"
-          >重新加载模板</el-button
+          >重新加载配置</el-button
         >
         <el-checkbox
           v-if="form.productId && !readonly && detail?.status !== 1"
@@ -801,7 +798,7 @@ onMounted(() => {
           <el-table-column prop="currencyCode" label="币种" width="80" />
           <el-table-column label="状态" width="90"
             ><template #default="{ row }">{{
-              row.status === 1 ? "启用" : "停用"
+              row.isEnable === 1 ? "启用" : "停用"
             }}</template></el-table-column
           >
         </el-table>
@@ -857,14 +854,8 @@ onMounted(() => {
   margin-bottom: 24px;
 }
 
-.page-heading h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
 .page-heading p {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--el-text-color-secondary);
 }
 

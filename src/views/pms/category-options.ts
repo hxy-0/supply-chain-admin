@@ -30,7 +30,7 @@ export function categoryOptions(
       .filter(category => String(category.catId) !== String(options.excludeId))
       .map(category => {
         const disabled =
-          hidden || (options.enabledOnly && category.showStatus !== 1);
+          hidden || (options.enabledOnly && category.isShow !== 1);
         const descendants = build(
           String(category.catId),
           depth + 1,

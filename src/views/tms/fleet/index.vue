@@ -149,19 +149,21 @@ function reset() {
 }
 async function toggle(
   row: Record<string, any>,
-  status: string | number | boolean
+  enable: string | number | boolean
 ) {
   if (statusSaving.value.has(row.id)) return;
   statusSaving.value.add(row.id);
   try {
     const current = kind.value;
-    const data = { ...row, status: Number(status) };
+    // 司机启用字段为 isEnable（1=启用 0=禁用），承运商/车辆仍是业务状态 status
+    const enableKey = current === "drivers" ? "isEnable" : "status";
+    const data = { ...row, [enableKey]: Number(enable) };
     for (const field of definitions[current].fields) {
-      if (field.options && field.key !== "status")
+      if (field.options && field.key !== enableKey)
         data[field.key] = enumCode(row[field.key], field.options);
     }
     await apis[current].save(data);
-    row.status = Number(status);
+    row[enableKey] = Number(enable);
   } catch (error) {
     report(error);
   } finally {
@@ -261,10 +263,10 @@ onMounted(() => {
           "
           ><template #default="s">
             <el-switch
-              v-if="kind === 'drivers' && field.key === 'status'"
-              :model-value="enumCode(s.row.status, field.options)"
-              :active-value="0"
-              :inactive-value="1"
+              v-if="kind === 'drivers' && field.key === 'isEnable'"
+              :model-value="enumCode(s.row.isEnable, field.options)"
+              :active-value="1"
+              :inactive-value="0"
               :loading="statusSaving.has(s.row.id)"
               :disabled="statusSaving.has(s.row.id)"
               active-text="启用"

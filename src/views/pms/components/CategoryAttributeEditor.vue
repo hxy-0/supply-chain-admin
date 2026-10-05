@@ -32,7 +32,17 @@ watch(visible, async value => {
     ]);
     if (current !== request) return;
     expectedItems.value = template.map(item => ({ ...item }));
-    items.value = template;
+    items.value = [...template].sort(
+      (left, right) =>
+        (left.sortOrder ?? 0) - (right.sortOrder ?? 0) ||
+        String(left.attributeId).localeCompare(
+          String(right.attributeId),
+          "en",
+          {
+            numeric: true
+          }
+        )
+    );
     options.value = attributes;
   } catch (error) {
     if (current === request) failure.value = errorMessage(error);
@@ -46,7 +56,7 @@ function add() {
     attributeCode: "",
     name: "",
     inputType: 2,
-    status: 1,
+    isEnable: 1,
     attributeKind: 1,
     required: false,
     searchable: false,
@@ -78,10 +88,10 @@ async function save() {
   try {
     await saveCategoryAttributes(
       props.category!.catId,
-      items.value,
+      items.value.map((item, index) => ({ ...item, sortOrder: index })),
       expectedItems.value
     );
-    ElMessage.success("分类属性模板已保存");
+    ElMessage.success("分类销售属性已保存");
     visible.value = false;
   } catch (error) {
     ElMessage.error(errorMessage(error));
@@ -93,7 +103,7 @@ async function save() {
 <template>
   <el-drawer
     v-model="visible"
-    :title="`${category?.name || ''} · 属性模板`"
+    :title="`${category?.name || ''} · 销售属性`"
     size="min(980px,96vw)"
     destroy-on-close
     :show-close="!saving"
@@ -101,7 +111,7 @@ async function save() {
     :close-on-click-modal="false"
   >
     <el-alert
-      title="销售属性生成 SKU；普通参数描述 SPU。配置模板后，商品只能选择模板内的属性。"
+      title="销售属性生成 SKU；普通参数描述 SPU。配置后，商品只能选择已配置的属性。"
       type="info"
       :closable="false"
     />
@@ -151,14 +161,6 @@ async function save() {
         ><el-table-column label="可检索" width="85"
           ><template #default="{ row }"
             ><el-switch v-model="row.searchable" /></template></el-table-column
-        ><el-table-column label="排序" width="130"
-          ><template #default="{ row }"
-            ><el-input-number
-              v-model="row.sortOrder"
-              :min="0"
-              :precision="0"
-              controls-position="right"
-              style="width: 110px" /></template></el-table-column
         ><el-table-column width="70"
           ><template #default="{ $index }"
             ><el-button link type="danger" @click="items.splice($index, 1)"
@@ -175,7 +177,7 @@ async function save() {
         :disabled="loading || !!failure"
         :loading="saving"
         @click="save"
-        >保存模板</el-button
+        >保存</el-button
       ></template
     >
   </el-drawer>

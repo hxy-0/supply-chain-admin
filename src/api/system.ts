@@ -122,8 +122,8 @@ export const getRoleMenuIds = (data?: object) => {
 
 export const saveSystemUser = (id: number | undefined, data: object) =>
   systemRequest(id ? "put" : "post", id ? `/users/${id}` : "/users", data);
-export const setUserStatus = (id: number, status: number) =>
-  systemRequest("put", `/users/${id}/status`, { status });
+export const setUserEnable = (id: number, isEnable: number) =>
+  systemRequest("put", `/users/${id}/enable`, { isEnable });
 export const deleteSystemUsers = (ids: number[]) =>
   systemRequest("post", "/users/delete", { ids });
 export const resetSystemPassword = (id: number, password: string) =>
@@ -134,8 +134,8 @@ export const setUserRoles = (id: number, ids: number[]) =>
   systemRequest("put", `/users/${id}/roles`, { ids });
 export const saveSystemRole = (id: number | undefined, data: object) =>
   systemRequest(id ? "put" : "post", id ? `/roles/${id}` : "/roles", data);
-export const setRoleStatus = (id: number, status: number) =>
-  systemRequest("put", `/roles/${id}/status`, { status });
+export const setRoleEnable = (id: number, isEnable: number) =>
+  systemRequest("put", `/roles/${id}/enable`, { isEnable });
 export const deleteSystemRole = (id: number) =>
   systemRequest("delete", `/roles/${id}`);
 export const setRoleMenus = (id: number, ids: number[]) =>

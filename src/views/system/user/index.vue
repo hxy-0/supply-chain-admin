@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import userAvatar from "@/assets/user.jpg";
 import { ref } from "vue";
 import { useUser } from "./utils/hook";
 import { PureTableBar } from "@/components/RePureTableBar";
@@ -21,6 +22,9 @@ const formRef = ref();
 const tableRef = ref();
 
 const {
+  switchLoadMap,
+  switchStyle,
+  onChange,
   form,
   loading,
   columns,
@@ -61,9 +65,9 @@ const {
             class="w-45!"
           />
         </el-form-item>
-        <el-form-item label="状态：" prop="status">
+        <el-form-item label="状态：" prop="isEnable">
           <el-select
-            v-model="form.status"
+            v-model="form.isEnable"
             placeholder="请选择"
             clearable
             class="w-45!"
@@ -142,6 +146,35 @@ const {
             @page-size-change="handleSizeChange"
             @page-current-change="handleCurrentChange"
           >
+            <template #avatar="{ row }"
+              ><el-image
+                fit="cover"
+                preview-teleported
+                :src="row.avatar || userAvatar"
+                :preview-src-list="[row.avatar || userAvatar]"
+                class="size-6 rounded-full align-middle" /></template
+            ><template #sex="{ row }"
+              ><el-tag
+                :size="size"
+                :type="row.sex === 1 ? 'danger' : 'primary'"
+                effect="plain"
+                >{{
+                  row.sex === 1 ? "女" : row.sex === 0 ? "男" : "未知"
+                }}</el-tag
+              ></template
+            ><template #status="{ row, index }"
+              ><el-switch
+                v-model="row.isEnable"
+                :size="size === 'small' ? 'small' : 'default'"
+                :loading="switchLoadMap[index]?.loading"
+                :active-value="1"
+                :inactive-value="0"
+                active-text="已启用"
+                inactive-text="已停用"
+                inline-prompt
+                :style="switchStyle"
+                @change="onChange({ row, index })"
+            /></template>
             <template #operation="{ row }">
               <el-button
                 class="reset-margin"

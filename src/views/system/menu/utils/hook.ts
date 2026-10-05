@@ -6,7 +6,7 @@ import { transformI18n } from "@/plugins/i18n";
 import { addDialog } from "@/components/ReDialog";
 import { reactive, ref, onMounted, h } from "vue";
 import type { FormItemProps } from "../utils/types";
-import { useRenderIcon } from "@/components/ReIcon/src/hooks";
+
 import { cloneDeep, isAllEmpty, deviceDetection } from "@pureadmin/utils";
 
 export function useMenu() {
@@ -36,30 +36,13 @@ export function useMenu() {
       label: "菜单名称",
       prop: "title",
       align: "left",
-      cellRenderer: ({ row }) => (
-        <>
-          <span class="inline-block mr-1">
-            {h(useRenderIcon(row.icon), {
-              style: { paddingTop: "1px" }
-            })}
-          </span>
-          <span>{transformI18n(row.title)}</span>
-        </>
-      )
+      slot: "title"
     },
     {
       label: "菜单类型",
       prop: "menuType",
       width: 100,
-      cellRenderer: ({ row, props }) => (
-        <el-tag
-          size={props.size}
-          type={getMenuType(row.menuType) as any}
-          effect="plain"
-        >
-          {getMenuType(row.menuType, true)}
-        </el-tag>
-      )
+      slot: "menuType"
     },
     {
       label: "路由路径",
@@ -238,6 +221,7 @@ export function useMenu() {
   });
 
   return {
+    getMenuType,
     form,
     loading,
     columns,

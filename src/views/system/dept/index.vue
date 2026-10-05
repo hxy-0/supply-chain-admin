@@ -16,6 +16,7 @@ defineOptions({
 const formRef = ref();
 const tableRef = ref();
 const {
+  tagStyle,
   form,
   loading,
   columns,
@@ -111,6 +112,11 @@ function onFullscreen() {
           }"
           @selection-change="handleSelectionChange"
         >
+          <template #status="{ row }"
+            ><el-tag :size="size" :style="tagStyle(row.status)">{{
+              row.status === 1 ? "启用" : "停用"
+            }}</el-tag></template
+          >
           <template #operation="{ row }">
             <el-button
               class="reset-margin"

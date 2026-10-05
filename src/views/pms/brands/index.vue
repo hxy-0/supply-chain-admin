@@ -10,13 +10,13 @@ import { pmsRequest, type Brand } from "@/api/pms";
 import type { PageResult } from "@/api/tms";
 import { usePmsPage } from "../composables/usePmsPage";
 defineOptions({ name: "PmsBrands" });
-type BrandForm = Omit<Brand, "brandId" | "status"> & {
+type BrandForm = Omit<Brand, "brandId" | "isEnable"> & {
   brandId?: string | number;
-  status: number;
+  isEnable: number;
 };
 const query = reactive({
   keyword: "",
-  status: undefined,
+  isEnable: undefined,
   pageNum: 1,
   pageSize: 20
 });
@@ -30,25 +30,16 @@ const visible = ref(false);
 const saving = ref(false);
 const formRef = ref<FormInstance>();
 const empty = (): BrandForm => ({
-  brandCode: "",
   name: "",
   englishName: "",
   logoUrl: "",
   websiteUrl: "",
   description: "",
   sortOrder: 0,
-  status: 1
+  isEnable: 1
 });
 const form = reactive<BrandForm>(empty());
 const rules: FormRules = {
-  brandCode: [
-    {
-      required: true,
-      whitespace: true,
-      message: "请输入品牌编码",
-      trigger: "blur"
-    }
-  ],
   name: [
     {
       required: true,
@@ -68,7 +59,7 @@ async function edit(row?: Brand) {
       ? await pmsRequest<Brand>("get", `/brands/${row.brandId}`)
       : undefined;
     Object.assign(form, empty(), { brandId: undefined }, data, {
-      status: data?.status ?? 1
+      isEnable: data?.isEnable ?? 1
     });
     visible.value = true;
   } catch (error) {
@@ -81,8 +72,7 @@ async function save() {
   try {
     await pmsRequest("post", "/brands", {
       ...form,
-      name: form.name.trim(),
-      brandCode: form.brandCode.trim()
+      name: form.name.trim()
     });
     visible.value = false;
     ElMessage.success("品牌已保存");
@@ -121,12 +111,12 @@ onMounted(load);
           ><el-input
             v-model="query.keyword"
             clearable
-            placeholder="品牌名称 / 编码"
+            placeholder="品牌名称"
             @keyup.enter="search"
         /></el-form-item>
         <el-form-item label="状态"
           ><el-select
-            v-model="query.status"
+            v-model="query.isEnable"
             clearable
             placeholder="全部状态"
             style="width: 140px"
@@ -139,7 +129,7 @@ onMounted(load);
           ><el-button
             @click="
               query.keyword = '';
-              query.status = undefined;
+              query.isEnable = undefined;
               search();
             "
             >重置</el-button
@@ -149,10 +139,7 @@ onMounted(load);
     </el-card>
     <el-card shadow="never" class="content-card">
       <div class="heading">
-        <div>
-          <h2>品牌管理</h2>
-          <p>维护独立品牌资料与启用状态</p>
-        </div>
+        <p>维护独立品牌资料与启用状态</p>
         <el-button type="primary" @click="edit()">新增品牌</el-button>
       </div>
 
@@ -164,10 +151,6 @@ onMounted(load);
       />
       <el-table v-loading="loading" :data="rows" row-key="brandId">
         <el-table-column
-          prop="brandCode"
-          label="品牌编码"
-          min-width="140"
-        /><el-table-column
           prop="name"
           label="品牌名称"
           min-width="160"
@@ -184,8 +167,8 @@ onMounted(load);
         />
         <el-table-column label="状态" width="100"
           ><template #default="{ row }"
-            ><el-tag :type="row.status === 1 ? 'success' : 'info'">{{
-              row.status === 1 ? "启用" : "停用"
+            ><el-tag :type="row.isEnable === 1 ? 'success' : 'info'">{{
+              row.isEnable === 1 ? "启用" : "停用"
             }}</el-tag></template
           ></el-table-column
         >
@@ -227,9 +210,6 @@ onMounted(load);
         :disabled="saving"
         label-width="96px"
       >
-        <el-form-item label="品牌编码" prop="brandCode"
-          ><el-input v-model="form.brandCode" maxlength="64"
-        /></el-form-item>
         <el-form-item label="品牌名称" prop="name"
           ><el-input v-model="form.name" maxlength="128"
         /></el-form-item>
@@ -246,7 +226,7 @@ onMounted(load);
           ><el-input v-model="form.description" type="textarea" :rows="3"
         /></el-form-item>
         <el-form-item label="状态"
-          ><el-radio-group v-model="form.status"
+          ><el-radio-group v-model="form.isEnable"
             ><el-radio :value="1">启用</el-radio
             ><el-radio :value="0">停用</el-radio></el-radio-group
           ></el-form-item
@@ -286,13 +266,8 @@ onMounted(load);
   margin-bottom: 24px;
 }
 
-.heading h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
 .heading p {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--el-text-color-secondary);
 }
 

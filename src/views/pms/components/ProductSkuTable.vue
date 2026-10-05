@@ -37,7 +37,7 @@ function defaultSku(index: number) {
             :disabled="disabled" /></template></el-table-column
       ><el-table-column label="状态" width="95"
         ><template #default="{ row }"
-          ><el-select v-model="row.status" :disabled="disabled"
+          ><el-select v-model="row.isEnable" :disabled="disabled"
             ><el-option label="启用" :value="1" /><el-option
               label="停用"
               :value="0" /></el-select></template></el-table-column

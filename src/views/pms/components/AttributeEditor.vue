@@ -14,7 +14,7 @@ const form = reactive({
   name: "",
   inputType: 2,
   unit: "",
-  status: 1
+  isEnable: 1
 });
 watch(visible, value => {
   if (value)
@@ -26,10 +26,10 @@ watch(visible, value => {
         name: "",
         inputType: 2,
         unit: "",
-        status: 1
+        isEnable: 1
       },
       props.attribute
-        ? { ...props.attribute, status: props.attribute.status }
+        ? { ...props.attribute, isEnable: props.attribute.isEnable }
         : {}
     );
 });
@@ -90,13 +90,13 @@ async function save() {
         ><el-input v-model="form.unit" maxlength="32"
       /></el-form-item>
       <el-form-item label="状态"
-        ><el-radio-group v-model="form.status"
+        ><el-radio-group v-model="form.isEnable"
           ><el-radio :value="1">启用</el-radio
           ><el-radio :value="0">停用</el-radio></el-radio-group
         ></el-form-item
       >
       <el-alert
-        title="属性为全局字典；在分类模板中指定它用于销售规格还是普通参数。"
+        title="属性为全局字典；在分类的销售属性配置中指定它用于销售规格还是普通参数。"
         type="info"
         :closable="false"
       />

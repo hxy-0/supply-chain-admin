@@ -6,7 +6,8 @@ interface FormItemProps {
   username: string;
   password: string;
   sex: string | number;
-  status: number;
+  /** 启用状态：1=启用 0=停用 */
+  isEnable: number;
   dept?: {
     id?: number;
     name?: string;

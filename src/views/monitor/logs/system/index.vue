@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Info from "~icons/ri/question-line";
 import { ref } from "vue";
 import { useRole } from "./hook";
 import { getPickerShortcuts } from "../../utils";
@@ -135,6 +136,22 @@ const {
           @page-current-change="handleCurrentChange"
           @cell-dblclick="handleCellDblclick"
         >
+          <template #urlHeader
+            ><span class="flex-c"
+              >请求接口<iconify-icon-offline
+                v-tippy="{
+                  content: '双击下面请求接口进行拷贝'
+                }"
+                :icon="Info"
+                class="ml-1 cursor-help" /></span></template
+          ><template #takesTime="{ row }"
+            ><el-tag
+              :size="size"
+              :type="row.takesTime < 1000 ? 'success' : 'warning'"
+              effect="plain"
+              >{{ row.takesTime }} ms</el-tag
+            ></template
+          >
           <template #operation="{ row }">
             <el-button
               class="reset-margin outline-hidden!"

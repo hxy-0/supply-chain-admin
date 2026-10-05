@@ -8,7 +8,7 @@ import { usePmsPage, errorMessage } from "../composables/usePmsPage";
 defineOptions({ name: "PmsAttributes" });
 const query = reactive({
   keyword: "",
-  status: undefined as number | undefined,
+  isEnable: undefined as number | undefined,
   pageNum: 1,
   pageSize: 20
 });
@@ -58,7 +58,7 @@ onMounted(load);
             @keyup.enter="search" /></el-form-item
         ><el-form-item label="状态"
           ><el-select
-            v-model="query.status"
+            v-model="query.isEnable"
             clearable
             placeholder="全部"
             style="width: 120px"
@@ -69,7 +69,7 @@ onMounted(load);
         ><el-button
           @click="
             query.keyword = '';
-            query.status = undefined;
+            query.isEnable = undefined;
             search();
           "
           >重置</el-button
@@ -78,10 +78,7 @@ onMounted(load);
     >
     <el-card shadow="never"
       ><div class="heading">
-        <div>
-          <h2>属性管理</h2>
-          <p>维护全局属性及预设值，在分类模板中指定用途。</p>
-        </div>
+        <p>维护全局属性及预设值，在分类的销售属性配置中指定用途。</p>
         <el-button type="primary" @click="edit()">新增属性</el-button>
       </div>
       <el-alert
@@ -107,8 +104,8 @@ onMounted(load);
           label="状态"
           width="90"
           ><template #default="{ row }"
-            ><el-tag :type="row.status === 1 ? 'success' : 'info'">{{
-              row.status === 1 ? "启用" : "停用"
+            ><el-tag :type="row.isEnable === 1 ? 'success' : 'info'">{{
+              row.isEnable === 1 ? "启用" : "停用"
             }}</el-tag></template
           ></el-table-column
         ><el-table-column label="操作" width="220"
@@ -159,11 +156,8 @@ onMounted(load);
   margin-bottom: 16px;
 }
 
-.heading h2 {
-  margin: 0;
-}
-
 .heading p {
+  margin: 0;
   color: var(--el-text-color-secondary);
 }
 

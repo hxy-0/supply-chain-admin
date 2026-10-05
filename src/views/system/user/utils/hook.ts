@@ -3,16 +3,16 @@ import dayjs from "dayjs";
 import roleForm from "../form/role.vue";
 import editForm from "../form/index.vue";
 import { message } from "@/utils/message";
-import userAvatar from "@/assets/user.jpg";
+import passwordForm from "../form/password.vue";
 import { usePublicHooks } from "../../hooks";
-import { ZxcvbnFactory } from "@zxcvbn-ts/core";
+
 import { addDialog } from "@/components/ReDialog";
 import type { PaginationProps } from "@pureadmin/table";
 import type { FormItemProps, RoleFormItemProps } from "../utils/types";
-import { getKeyList, isAllEmpty, deviceDetection } from "@pureadmin/utils";
+import { getKeyList, deviceDetection } from "@pureadmin/utils";
 import {
   saveSystemUser,
-  setUserStatus,
+  setUserEnable,
   deleteSystemUsers,
   resetSystemPassword,
   setSystemAvatar,
@@ -21,28 +21,13 @@ import {
   getUserList,
   getAllRoleList
 } from "@/api/system";
-import {
-  ElForm,
-  ElInput,
-  ElFormItem,
-  ElProgress,
-  ElMessageBox
-} from "element-plus";
-import {
-  type Ref,
-  h,
-  ref,
-  toRaw,
-  watch,
-  computed,
-  reactive,
-  onMounted
-} from "vue";
+import { ElMessageBox } from "element-plus";
+import { type Ref, h, ref, toRaw, computed, reactive, onMounted } from "vue";
 
 export function useUser(tableRef: Ref) {
   const form = reactive({
     username: "",
-    status: ""
+    isEnable: ""
   });
   const formRef = ref();
   const ruleFormRef = ref();
@@ -72,15 +57,7 @@ export function useUser(tableRef: Ref) {
     {
       label: "用户头像",
       prop: "avatar",
-      cellRenderer: ({ row }) => (
-        <el-image
-          fit="cover"
-          preview-teleported={true}
-          src={row.avatar || userAvatar}
-          preview-src-list={Array.of(row.avatar || userAvatar)}
-          class="size-6 rounded-full align-middle"
-        />
-      ),
+      slot: "avatar",
       width: 90
     },
     {
@@ -97,34 +74,13 @@ export function useUser(tableRef: Ref) {
       label: "性别",
       prop: "sex",
       minWidth: 90,
-      cellRenderer: ({ row, props }) => (
-        <el-tag
-          size={props.size}
-          type={row.sex === 1 ? "danger" : null}
-          effect="plain"
-        >
-          {row.sex === 1 ? "女" : row.sex === 0 ? "男" : "未知"}
-        </el-tag>
-      )
+      slot: "sex"
     },
     {
       label: "状态",
-      prop: "status",
+      prop: "isEnable",
       minWidth: 90,
-      cellRenderer: scope => (
-        <el-switch
-          size={scope.props.size === "small" ? "small" : "default"}
-          loading={switchLoadMap.value[scope.index]?.loading}
-          v-model={scope.row.status}
-          active-value={1}
-          inactive-value={0}
-          active-text="已启用"
-          inactive-text="已停用"
-          inline-prompt
-          style={switchStyle.value}
-          onChange={() => onChange(scope as any)}
-        />
-      )
+      slot: "status"
     },
     {
       label: "创建时间",
@@ -153,30 +109,20 @@ export function useUser(tableRef: Ref) {
   const pwdForm = reactive({
     newPwd: ""
   });
-  const pwdProgress = [
-    { color: "#e74242", text: "非常弱" },
-    { color: "#EFBD47", text: "弱" },
-    { color: "#ffa500", text: "一般" },
-    { color: "#1bbf1b", text: "强" },
-    { color: "#008000", text: "非常强" }
-  ];
-  // 当前密码强度（0-4）
-  const curScore = ref();
   const roleOptions = ref([]);
-  const zxcvbnFactory = new ZxcvbnFactory();
 
   async function onChange({ row, index }) {
     try {
       await ElMessageBox.confirm(
-        `确认${row.status === 0 ? "停用" : "启用"}用户 ${row.username}？`,
+        `确认${row.isEnable === 0 ? "停用" : "启用"}用户 ${row.username}？`,
         "系统提示",
         { type: "warning" }
       );
       switchLoadMap.value[index] = { loading: true };
-      await setUserStatus(row.id, row.status);
+      await setUserEnable(row.id, row.isEnable);
       message("用户状态已更新", { type: "success" });
     } catch {
-      row.status = row.status === 0 ? 1 : 0;
+      row.isEnable = row.isEnable === 0 ? 1 : 0;
     } finally {
       switchLoadMap.value[index] = { loading: false };
     }
@@ -226,7 +172,7 @@ export function useUser(tableRef: Ref) {
     try {
       const { data } = await getUserList({
         ...toRaw(form),
-        status: form.status === "" ? null : Number(form.status),
+        isEnable: form.isEnable === "" ? null : Number(form.isEnable),
         pageNum: pagination.currentPage,
         pageSize: pagination.pageSize
       });
@@ -257,7 +203,7 @@ export function useUser(tableRef: Ref) {
           username: row?.username ?? "",
           password: row?.password ?? "",
           sex: row?.sex ?? 2,
-          status: row?.status ?? 1,
+          isEnable: row?.isEnable ?? 1,
           remark: row?.remark ?? ""
         }
       },
@@ -306,14 +252,6 @@ export function useUser(tableRef: Ref) {
     }
   }
 
-  watch(
-    pwdForm,
-    ({ newPwd }) =>
-      (curScore.value = isAllEmpty(newPwd)
-        ? -1
-        : zxcvbnFactory.check(newPwd).score)
-  );
-
   /** 重置密码 */
   function handleReset(row) {
     addDialog({
@@ -322,57 +260,11 @@ export function useUser(tableRef: Ref) {
       draggable: true,
       closeOnClickModal: false,
       fullscreen: deviceDetection(),
-      contentRenderer: () => (
-        <>
-          <ElForm ref={ruleFormRef} model={pwdForm}>
-            <ElFormItem
-              prop="newPwd"
-              rules={[
-                {
-                  required: true,
-                  message: "请输入新密码",
-                  trigger: "blur"
-                }
-              ]}
-            >
-              <ElInput
-                clearable
-                show-password
-                type="password"
-                v-model={pwdForm.newPwd}
-                placeholder="请输入新密码"
-              />
-            </ElFormItem>
-          </ElForm>
-          <div class="my-4 flex">
-            {pwdProgress.map(({ color, text }, idx) => (
-              <div
-                class="w-[19vw]"
-                style={{ marginLeft: idx !== 0 ? "4px" : 0 }}
-              >
-                <ElProgress
-                  striped
-                  striped-flow
-                  duration={curScore.value === idx ? 6 : 0}
-                  percentage={curScore.value >= idx ? 100 : 0}
-                  color={color}
-                  stroke-width={10}
-                  show-text={false}
-                />
-                <p
-                  class="text-center"
-                  style={{ color: curScore.value === idx ? color : "" }}
-                >
-                  {text}
-                </p>
-              </div>
-            ))}
-          </div>
-        </>
-      ),
+      contentRenderer: () =>
+        h(passwordForm, { ref: ruleFormRef, model: pwdForm }),
       closeCallBack: () => (pwdForm.newPwd = ""),
       beforeSure: done => {
-        ruleFormRef.value.validate(async valid => {
+        ruleFormRef.value.getRef().validate(async valid => {
           if (valid) {
             await resetSystemPassword(row.id, pwdForm.newPwd);
             message(`已成功重置 ${row.username} 用户的密码`, {
@@ -421,6 +313,9 @@ export function useUser(tableRef: Ref) {
   });
 
   return {
+    switchLoadMap,
+    switchStyle,
+    onChange,
     form,
     loading,
     columns,

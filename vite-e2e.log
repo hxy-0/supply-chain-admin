@@ -1,0 +1,31 @@
+╭─────────────────────────────────────────────╮
+│ 您好! 欢迎使用 pure-admin 开源项目          │
+│ 我们为您精心准备了下面两个贴心的保姆级文档  │
+│ https://pure-admin.cn                       │
+│ https://pure-admin-utils.netlify.app        │
+╰─────────────────────────────────────────────╯
+
+  [32m[1mVITE[22m v8.2.2[39m  [2mready in [0m[1m1691[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m8848[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.19.0.1:[1m8848[22m/[39m   [2mNubeVPN[22m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.3.7:[1m8848[22m/[39m  [2mWLAN[22m
+[2m19:14:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] scanning dependencies...
+[2m19:40:45[22m [31m[1m[vite][22m[39m [31mhttp proxy error: /auth/github/authorize[39m
+Error: connect ECONNREFUSED 127.0.0.1:8080
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16)
+[2m19:45:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m20:01:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/layout/components/lay-sidebar/components/SidebarItem.vue, /src/style/tailwind.css[22m
+[2m20:17:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/views/system/menu/utils/hook.tsx[22m
+[2m20:17:28[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/system/menu/form.vue, /src/style/tailwind.css[22m
+[2m20:28:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/permission/page/index.vue, /src/style/tailwind.css[22m
+[2m20:30:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/views/tms/queue/index.vue[22m
+[2m20:31:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/views/tms/fleet/index.vue[22m
+[2m20:31:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/views/tms/monitoring/index.vue[22m
+[2m21:01:07[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/style/tailwind.css, /src/views/login/index.vue, /src/views/login/components/LoginVerification.vue[22m
+[2m21:02:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/style/tailwind.css, /src/views/login/index.vue, /src/views/login/components/LoginVerification.vue[22m
+[2m21:05:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/style/tailwind.css, /src/views/login/index.vue, /src/views/login/components/LoginVerification.vue[22m
+[2m21:36:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/api/system.ts[22m
+[2m21:36:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/views/system/user/utils/hook.tsx[22m
+[2m21:36:31[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/views/system/role/utils/hook.tsx[22m
+[2m21:41:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/api/system.ts[22m

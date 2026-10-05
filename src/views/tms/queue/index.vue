@@ -47,7 +47,7 @@ const configQuery = reactive({
   pageSize: 10,
   queueCode: "",
   queueName: "",
-  status: undefined as number | undefined
+  isEnable: undefined as number | undefined
 });
 const editOpen = ref(false),
   detailOpen = ref(false),
@@ -63,7 +63,7 @@ const autoRefresh = ref(true),
 const enabledQueues = computed(() =>
   tab.value === "ticket-record"
     ? queues.value
-    : queues.value.filter(q => q.status !== 0)
+    : queues.value.filter(q => q.isEnable !== 0)
 );
 const waiting = computed(() => tickets.value.filter(t => t.status === 10));
 const calling = computed(() => tickets.value.filter(t => t.status === 20));
@@ -345,7 +345,7 @@ onUnmounted(() => {
           /></el-form-item>
           <el-form-item
             ><el-select
-              v-model="configQuery.status"
+              v-model="configQuery.isEnable"
               placeholder="状态"
               clearable
               style="width: 120px"
@@ -361,7 +361,7 @@ onUnmounted(() => {
                   pageNum: 1,
                   queueCode: '',
                   queueName: '',
-                  status: undefined
+                  isEnable: undefined
                 });
                 loadConfigs().catch(report);
               "
@@ -394,7 +394,7 @@ onUnmounted(() => {
           /><el-table-column prop="maxCallCount" label="最大叫号次数" />
           <el-table-column label="状态"
             ><template #default="s"
-              ><StatusTag :value="s.row.status" config /></template
+              ><StatusTag :value="s.row.isEnable" config /></template
           ></el-table-column>
           <el-table-column label="操作"
             ><template #default="s"

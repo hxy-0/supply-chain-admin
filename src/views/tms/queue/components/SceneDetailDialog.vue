@@ -37,7 +37,7 @@ watch([open, () => props.scene], async () => {
             detail.queueCode
           }}</el-descriptions-item
           ><el-descriptions-item label="状态"
-            ><StatusTag :value="detail.status" config /></el-descriptions-item
+            ><StatusTag :value="detail.isEnable" config /></el-descriptions-item
           ><el-descriptions-item label="业务分类">{{
             detail.sceneCode || "-"
           }}</el-descriptions-item
@@ -58,7 +58,7 @@ watch([open, () => props.scene], async () => {
           ><el-table-column label="状态"
             ><template #default="s"
               ><StatusTag
-                :value="s.row.status"
+                :value="s.row.isEnable"
                 config /></template></el-table-column
           ><el-table-column label="已发号"
             ><template #default="s">{{

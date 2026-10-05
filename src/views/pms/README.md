@@ -3,7 +3,7 @@
 管理员菜单：商品管理 → 品牌管理、SPU管理、SKU管理、分类、属性管理。菜单和管理员角色关联由 `db/postgresql/pms_menu_seed.sql` 幂等初始化。
 
 - 品牌：筛选、分页、新增、编辑、启停、删除。已被商品引用的品牌不能删除。
-- 分类：树形搜索、新增根分类/子分类、编辑、显示/隐藏、排序、删除。最多三级，不能形成循环；关联商品或属性模板的分类不能删除。
+- 分类：树形搜索、新增根分类/子分类、编辑、显示/隐藏、排序、删除。最多三级，不能形成循环；关联商品或销售属性的分类不能删除。
 - 属性：独立字典管理、分页筛选、新增/编辑/启停/删除及属性值维护；引用保护防止损坏已有商品。
 - 分类模板：末级分类配置销售属性/普通参数、必填、检索标记及排序，保存时检查并发快照和既有商品用途。
 - SPU：筛选分页、详情、单规格/多规格草稿创建、基础资料编辑、上架/下架/归档。按分类模板维护参数、图片、销售属性和值，生成最多 200 个组合；草稿/下架商品可调整规格，复用相同 SKU，移除的组合仅停用。
@@ -12,4 +12,4 @@
 
 接口保留 `/api` 前缀，通过 Vite 代理访问 `8080`。本地首页为 `http://127.0.0.1:8848/#/pms/brands`。
 
-验证：`node --experimental-strip-types scripts/specifications.test.mjs`；前端 TypeScript/ESLint/Stylelint/生产构建；后端品牌、分类、属性、模板、SKU、命令校验及接口契约测试。`python db/postgresql/test_pms.py` 使用本地配置运行真实 PostgreSQL 商品生命周期测试，全部写入通过事务回滚。
+验证：`node --experimental-strip-types scripts/specifications.test.mjs`；前端 TypeScript/ESLint/Stylelint/生产构建；后端品牌、分类、属性、模板、SKU、命令校验及接口契约测试。后端 `PmsDatabaseTest` 运行真实 PostgreSQL 商品生命周期测试，全部写入通过事务回滚。

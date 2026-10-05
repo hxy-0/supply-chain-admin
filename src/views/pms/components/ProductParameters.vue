@@ -126,7 +126,7 @@ function updateCustom(attribute: Attribute, value: string) {
           :key="value.attributeValueId"
           :value="value.attributeValueId"
           :label="value.valueName"
-          :disabled="value.status !== 1"
+          :disabled="value.isEnable !== 1"
       /></el-select>
     </el-form-item>
   </div>

@@ -11,7 +11,7 @@ import type { PaginationProps } from "@pureadmin/table";
 import { getKeyList, deviceDetection } from "@pureadmin/utils";
 import {
   saveSystemRole,
-  setRoleStatus,
+  setRoleEnable,
   deleteSystemRole,
   setRoleMenus,
   getRoleList,
@@ -24,7 +24,7 @@ export function useRole(treeRef: Ref) {
   const form = reactive({
     name: "",
     code: "",
-    status: ""
+    isEnable: ""
   });
   const curRow = ref();
   const formRef = ref();
@@ -65,21 +65,7 @@ export function useRole(treeRef: Ref) {
     },
     {
       label: "状态",
-      cellRenderer: scope => (
-        <el-switch
-          size={scope.props.size === "small" ? "small" : "default"}
-          loading={switchLoadMap.value[scope.index]?.loading}
-          v-model={scope.row.status}
-          active-value={1}
-          inactive-value={0}
-          active-text="已启用"
-          inactive-text="已停用"
-          inline-prompt
-          style={switchStyle.value}
-          disabled={["admin", "common"].includes(scope.row.code)}
-          onChange={() => onChange(scope as any)}
-        />
-      ),
+      slot: "status",
       minWidth: 90
     },
     {
@@ -114,15 +100,15 @@ export function useRole(treeRef: Ref) {
   async function onChange({ row, index }) {
     try {
       await ElMessageBox.confirm(
-        `确认${row.status === 0 ? "停用" : "启用"}角色 ${row.name}？`,
+        `确认${row.isEnable === 0 ? "停用" : "启用"}角色 ${row.name}？`,
         "系统提示",
         { type: "warning" }
       );
       switchLoadMap.value[index] = { loading: true };
-      await setRoleStatus(row.id, row.status);
+      await setRoleEnable(row.id, row.isEnable);
       message("角色状态已更新", { type: "success" });
     } catch {
-      row.status = row.status === 0 ? 1 : 0;
+      row.isEnable = row.isEnable === 0 ? 1 : 0;
     } finally {
       switchLoadMap.value[index] = { loading: false };
     }
@@ -150,7 +136,7 @@ export function useRole(treeRef: Ref) {
     try {
       const { data } = await getRoleList({
         ...toRaw(form),
-        status: form.status === "" ? null : Number(form.status),
+        isEnable: form.isEnable === "" ? null : Number(form.isEnable),
         pageNum: pagination.currentPage,
         pageSize: pagination.pageSize
       });
@@ -281,6 +267,9 @@ export function useRole(treeRef: Ref) {
   });
 
   return {
+    switchLoadMap,
+    switchStyle,
+    onChange,
     form,
     isShow,
     curRow,

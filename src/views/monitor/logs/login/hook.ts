@@ -64,11 +64,7 @@ export function useRole(tableRef: Ref) {
       label: "登录状态",
       prop: "status",
       minWidth: 100,
-      cellRenderer: ({ row, props }) => (
-        <el-tag size={props.size} style={tagStyle.value(row.status)}>
-          {row.status === 1 ? "成功" : "失败"}
-        </el-tag>
-      )
+      slot: "status"
     },
     {
       label: "登录行为",
@@ -153,6 +149,7 @@ export function useRole(tableRef: Ref) {
   });
 
   return {
+    tagStyle,
     form,
     loading,
     columns,

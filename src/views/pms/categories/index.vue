@@ -1,6 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
-import { ElMessage, ElMessageBox, type FormInstance } from "element-plus";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
+import {
+  ElMessage,
+  ElMessageBox,
+  type ElTreeV2,
+  type FormInstance
+} from "element-plus";
 import { getCategories, pmsRequest, type Category, type Id } from "@/api/pms";
 import { categoryOptions } from "../category-options";
 import CategoryAttributeEditor from "../components/CategoryAttributeEditor.vue";
@@ -12,14 +17,17 @@ function configure(row: Category) {
   templateVisible.value = true;
 }
 function isLeaf(row: Category) {
-  return !items.value.some(
-    item => String(item.parentCid) === String(row.catId)
-  );
+  return !parentIds.value.has(String(row.catId));
 }
 interface CategoryNode extends Category {
+  treeKey: string;
   children?: CategoryNode[];
 }
 const items = ref<Category[]>([]);
+const parentIds = computed(
+  () => new Set(items.value.map(item => String(item.parentCid)))
+);
+const treeRef = ref<InstanceType<typeof ElTreeV2>>();
 const loading = ref(false);
 const failure = ref("");
 const keyword = ref("");
@@ -30,16 +38,17 @@ const empty = () => ({
   catId: undefined as Id | undefined,
   name: "",
   parentCid: 0 as Id,
-  showStatus: 1,
+  isShow: 1,
   sort: 0,
   icon: "",
   productUnit: ""
 });
 const form = reactive(empty());
+const searchTerm = computed(() => keyword.value.trim());
 const nodes = computed(() => {
   const matches = new Set(
     items.value
-      .filter(c => c.name.includes(keyword.value.trim()))
+      .filter(c => c.name.includes(searchTerm.value))
       .map(c => String(c.catId))
   );
   const map = new Map(items.value.map(c => [String(c.catId), c]));
@@ -59,7 +68,10 @@ const nodes = computed(() => {
   const byId = new Map<string, CategoryNode>(
     items.value
       .filter(c => matches.has(String(c.catId)))
-      .map(c => [String(c.catId), { ...c, children: [] }])
+      .map(c => [
+        String(c.catId),
+        { ...c, treeKey: String(c.catId), children: [] }
+      ])
   );
   const roots: CategoryNode[] = [];
   for (const node of byId.values()) {
@@ -67,7 +79,38 @@ const nodes = computed(() => {
     if (parent) parent.children!.push(node);
     else roots.push(node);
   }
+  function sortBranches(branches: CategoryNode[]) {
+    branches.sort(
+      (left, right) =>
+        (left.sort ?? 0) - (right.sort ?? 0) ||
+        left.treeKey.localeCompare(right.treeKey, "en", { numeric: true })
+    );
+    for (const branch of branches) {
+      if (branch.children?.length) sortBranches(branch.children);
+    }
+  }
+  sortBranches(roots);
   return roots;
+});
+watch([nodes, searchTerm], async ([roots, query], [, previousQuery]) => {
+  await nextTick();
+  if (query) {
+    const expandedKeys: string[] = [];
+    function collect(branches: CategoryNode[]) {
+      for (const branch of branches) {
+        if (branch.children?.length) {
+          expandedKeys.push(branch.treeKey);
+          collect(branch.children);
+        }
+      }
+    }
+    collect(roots);
+    treeRef.value?.setExpandedKeys(expandedKeys);
+    treeRef.value?.scrollTo(0);
+  } else if (previousQuery) {
+    treeRef.value?.setExpandedKeys([]);
+    treeRef.value?.scrollTo(0);
+  }
 });
 const parentOptions = computed(() => [
   { value: 0, label: "无（一级分类）" },
@@ -97,6 +140,16 @@ async function save() {
   if (!(await formRef.value?.validate().catch(() => false))) return;
   saving.value = true;
   try {
+    if (!form.catId) {
+      form.sort =
+        items.value.reduce(
+          (maximum, item) =>
+            String(item.parentCid) === String(form.parentCid)
+              ? Math.max(maximum, item.sort ?? 0)
+              : maximum,
+          -1
+        ) + 1;
+    }
     await pmsRequest("post", "/categories", form);
     visible.value = false;
     ElMessage.success("分类已保存");
@@ -147,10 +200,7 @@ onMounted(load);
     </el-card>
     <el-card shadow="never" class="content-card">
       <div class="heading">
-        <div>
-          <h2>分类</h2>
-          <p>三级分类树，SPU 只能关联末级分类</p>
-        </div>
+        <p>三级分类树，SPU 只能关联末级分类</p>
         <el-button type="primary" @click="edit()">新增一级分类</el-button>
       </div>
 
@@ -160,59 +210,80 @@ onMounted(load);
         type="error"
         :closable="false"
       />
-      <el-table
-        v-loading="loading"
-        :data="nodes"
-        row-key="catId"
-        :tree-props="{ children: 'children' }"
-        :default-expand-all="!!keyword"
-      >
-        <el-table-column
-          prop="name"
-          label="分类名称"
-          min-width="260"
-        /><el-table-column
-          prop="catId"
-          label="分类 ID"
-          width="120"
-        /><el-table-column
-          prop="catLevel"
-          label="层级"
-          width="90"
-        /><el-table-column
-          prop="productUnit"
-          label="商品单位"
-          min-width="120"
-        /><el-table-column prop="sort" label="排序" width="90" />
-        <el-table-column label="状态" width="100"
-          ><template #default="{ row }"
-            ><el-tag :type="row.showStatus === 1 ? 'success' : 'info'">{{
-              row.showStatus === 1 ? "显示" : "隐藏"
-            }}</el-tag></template
-          ></el-table-column
-        >
-        <el-table-column label="操作" width="320"
-          ><template #default="{ row }"
-            ><el-button
-              v-if="isLeaf(row as Category)"
-              link
-              type="primary"
-              @click="configure(row as Category)"
-              >属性模板</el-button
-            ><el-button link type="primary" @click="edit(row as Category)"
-              >编辑</el-button
-            ><el-button
-              v-if="row.catLevel < 3"
-              link
-              type="primary"
-              @click="edit(undefined, row as Category)"
-              >添加子分类</el-button
-            ><el-button link type="danger" @click="remove(row as Category)"
-              >删除</el-button
-            ></template
-          ></el-table-column
-        >
-      </el-table>
+      <div v-loading="loading" class="category-tree-scroll">
+        <div class="category-tree-table">
+          <div class="category-columns category-header">
+            <span>分类名称</span>
+            <span>分类 ID</span>
+            <span>层级</span>
+            <span>商品单位</span>
+            <span>状态</span>
+            <span>操作</span>
+          </div>
+          <el-tree-v2
+            ref="treeRef"
+            :data="nodes"
+            :props="{ value: 'treeKey', label: 'name', children: 'children' }"
+            :height="528"
+            :item-size="44"
+            :indent="16"
+            :expand-on-click-node="false"
+            :perf-mode="false"
+            class="category-tree"
+          >
+            <template #default="{ data }">
+              <div class="category-columns category-row">
+                <span class="category-name" :title="data.name">{{
+                  data.name
+                }}</span>
+                <span>{{ data.catId }}</span>
+                <span>{{ data.catLevel }}</span>
+                <span>{{ data.productUnit }}</span>
+                <span>
+                  <el-tag :type="data.isShow === 1 ? 'success' : 'info'">
+                    {{ data.isShow === 1 ? "显示" : "隐藏" }}
+                  </el-tag>
+                </span>
+                <div class="category-actions" @click.stop>
+                  <el-button
+                    v-if="isLeaf(data as Category)"
+                    link
+                    type="primary"
+                    @click="configure(data as Category)"
+                    >销售属性</el-button
+                  >
+                  <el-button
+                    link
+                    type="primary"
+                    @click="edit(data as Category)"
+                  >
+                    编辑
+                  </el-button>
+                  <el-button
+                    v-if="data.catLevel < 3"
+                    link
+                    type="primary"
+                    @click="edit(undefined, data as Category)"
+                    >添加子分类</el-button
+                  >
+                  <el-button
+                    link
+                    type="danger"
+                    @click="remove(data as Category)"
+                  >
+                    删除
+                  </el-button>
+                </div>
+              </div>
+            </template>
+            <template #empty>
+              <el-empty
+                :description="loading ? '正在加载分类' : '暂无匹配分类'"
+              />
+            </template>
+          </el-tree-v2>
+        </div>
+      </div>
     </el-card>
     <el-dialog
       v-model="visible"
@@ -252,11 +323,8 @@ onMounted(load);
         <el-form-item label="图标地址"
           ><el-input v-model="form.icon" maxlength="255"
         /></el-form-item>
-        <el-form-item label="排序"
-          ><el-input-number v-model="form.sort" :min="0" :precision="0"
-        /></el-form-item>
         <el-form-item label="状态"
-          ><el-radio-group v-model="form.showStatus"
+          ><el-radio-group v-model="form.isShow"
             ><el-radio :value="1">显示</el-radio
             ><el-radio :value="0">隐藏</el-radio></el-radio-group
           ></el-form-item
@@ -272,6 +340,52 @@ onMounted(load);
   </div>
 </template>
 <style scoped>
+.category-tree-scroll {
+  overflow-x: auto;
+}
+
+.category-tree-table {
+  min-width: 990px;
+}
+
+.category-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 90px 120px 100px 320px;
+  align-items: center;
+}
+
+.category-header {
+  height: 44px;
+  padding-right: 8px;
+  padding-left: 26px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.category-row {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding-right: 8px;
+  font-size: 14px;
+}
+
+.category-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-actions {
+  display: flex;
+  align-items: center;
+}
+
+.category-tree :deep(.el-tree-node__content) {
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
 .parent-select {
   width: 100%;
 }
@@ -297,13 +411,8 @@ onMounted(load);
   margin-bottom: 24px;
 }
 
-.heading h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
 .heading p {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--el-text-color-secondary);
 }
 </style>

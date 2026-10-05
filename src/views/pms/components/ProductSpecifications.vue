@@ -105,7 +105,7 @@ function generate() {
                 .join(" / "),
               retailPrice: 0,
               currencyCode: "CNY",
-              status: 1,
+              isEnable: 1,
               isDefault: index === 0,
               images: []
             };
@@ -150,7 +150,7 @@ function generate() {
               ('required' in attribute && attribute.required ? '（必填）' : '')
             "
             :disabled="
-              attribute.status !== 1 ||
+              attribute.isEnable !== 1 ||
               axes.some(
                 other =>
                   other !== axis &&
@@ -168,7 +168,7 @@ function generate() {
             :key="value.attributeValueId"
             :value="value.attributeValueId"
             :label="value.valueName"
-            :disabled="value.status !== 1" /></el-select
+            :disabled="value.isEnable !== 1" /></el-select
         ><el-button
           :disabled="blocked || !axis.attributeId"
           @click="manageValues(axis.attributeId)"

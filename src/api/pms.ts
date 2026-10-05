@@ -7,7 +7,7 @@ export interface Category {
   catId: Id;
   name: string;
   parentCid: Id;
-  showStatus: number;
+  isShow: number;
   productUnit?: string;
   catLevel?: number;
   sort?: number;
@@ -16,8 +16,7 @@ export interface Category {
 export interface Brand {
   brandId: Id;
   name: string;
-  status: number;
-  brandCode: string;
+  isEnable: number;
   englishName?: string;
   logoUrl?: string;
   websiteUrl?: string;
@@ -56,7 +55,8 @@ export interface Sku {
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
-  status: number;
+  /** 1=启用 0=停用（P3C is_enable） */
+  isEnable: number;
   isDefault?: boolean;
   sortOrder?: number;
 }
@@ -160,7 +160,7 @@ export interface Attribute {
   name: string;
   inputType: number;
   unit?: string;
-  status: number;
+  isEnable: number;
 }
 export interface AttributeValue {
   attributeValueId: Id;
@@ -168,7 +168,7 @@ export interface AttributeValue {
   valueCode: string;
   valueName: string;
   sortOrder: number;
-  status: number;
+  isEnable: number;
 }
 export interface CategoryAttribute extends Attribute {
   attributeKind: number;
@@ -181,7 +181,7 @@ export const getAttributes = (params: object) =>
 export async function getEnabledAttributes(): Promise<Attribute[]> {
   const result: Attribute[] = [];
   for (let pageNum = 1; ; pageNum++) {
-    const page = await getAttributes({ pageNum, pageSize: 100, status: 1 });
+    const page = await getAttributes({ pageNum, pageSize: 100, isEnable: 1 });
     result.push(...page.records);
     if (!page.records.length || result.length >= Number(page.total))
       return result;
