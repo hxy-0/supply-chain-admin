@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { ElMessage, type FormInstance } from "element-plus";
 import { pmsRequest, type Sku, type SkuImage, type Id } from "@/api/pms";
 import type { PageResult } from "@/api/tms";
@@ -8,6 +8,139 @@ import SkuFields from "../components/SkuFields.vue";
 import { usePmsPage } from "../composables/usePmsPage";
 defineOptions({ name: "PmsSkus" });
 import SkuImages from "../components/SkuImages.vue";
+import {
+  getProducts,
+  getProduct,
+  getCategoryAttributes,
+  getEnabledAttributes,
+  saveProduct,
+  type Product,
+  type ProductCommand,
+  type Attribute,
+  type CategoryAttribute
+} from "@/api/pms";
+import ProductSpecifications from "../components/ProductSpecifications.vue";
+import ProductSkuTable from "../components/ProductSkuTable.vue";
+const generationDialog = ref(false);
+const generationLoading = ref(false);
+const generationSaving = ref(false);
+const generationDirty = ref(false);
+const productOptions = ref<Product[]>([]);
+const selectedProduct = ref<Id>();
+const generation = ref<ProductCommand>();
+const generationOptions = ref<(Attribute | CategoryAttribute)[]>([]);
+const availableSales = computed(() =>
+  generationOptions.value.filter(
+    item =>
+      !generation.value?.attributes.some(
+        parameter => String(parameter.attributeId) === String(item.attributeId)
+      )
+  )
+);
+async function startGeneration() {
+  try {
+    generationLoading.value = true;
+    productOptions.value = [];
+    let pageNum = 1;
+    while (true) {
+      const page = await getProducts({ pageNum, pageSize: 200 });
+      productOptions.value.push(
+        ...page.records.filter(
+          product => product.status === 0 || product.status === 2
+        )
+      );
+      if (pageNum * 200 >= Number(page.total)) break;
+      pageNum++;
+    }
+    generation.value = undefined;
+    selectedProduct.value = filters.productId;
+    generationDialog.value = true;
+    if (selectedProduct.value) await selectGenerationProduct();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "商品加载失败");
+  } finally {
+    generationLoading.value = false;
+  }
+}
+async function selectGenerationProduct() {
+  generation.value = undefined;
+  if (!selectedProduct.value) return;
+  generationLoading.value = true;
+  try {
+    const product = await getProduct(selectedProduct.value);
+    const [template, attributes] = await Promise.all([
+      getCategoryAttributes(product.categoryId),
+      getEnabledAttributes()
+    ]);
+    generationOptions.value = template.length
+      ? template.filter(item => item.attributeKind === 1)
+      : attributes.filter(item => item.inputType !== 3);
+    const axes = new Map<string, ProductCommand["salesAttributes"][number]>();
+    for (const detail of product.skus ?? []) {
+      if (detail.sku.isEnable !== 1) continue;
+      for (const attribute of detail.attributes) {
+        const key = String(attribute.attributeId);
+        if (!axes.has(key))
+          axes.set(key, {
+            attributeId: attribute.attributeId,
+            valueIds: [],
+            sortOrder: axes.size
+          });
+        const axis = axes.get(key)!;
+        if (
+          !axis.valueIds.some(
+            id => String(id) === String(attribute.attributeValueId)
+          )
+        )
+          axis.valueIds.push(attribute.attributeValueId);
+      }
+    }
+    generation.value = {
+      ...product,
+      attributes: product.attributes ?? [],
+      images: product.images ?? [],
+      salesAttributes: [...axes.values()],
+      skus: (product.skus ?? []).map(detail => ({
+        ...detail.sku,
+        images: detail.images ?? []
+      }))
+    };
+    generationDirty.value = true;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "配置加载失败");
+  } finally {
+    generationLoading.value = false;
+  }
+}
+function generated(
+  selections: ProductCommand["salesAttributes"],
+  skus: ProductCommand["skus"]
+) {
+  generation.value!.salesAttributes = selections;
+  generation.value!.skus = skus;
+  generationDirty.value = false;
+}
+async function saveGeneration() {
+  if (
+    !generation.value ||
+    generationDirty.value ||
+    !generation.value.skus.length
+  ) {
+    ElMessage.warning("请先生成 SKU 后再保存");
+    return;
+  }
+  generationSaving.value = true;
+  try {
+    await saveProduct(generation.value);
+    generationDialog.value = false;
+    ElMessage.success("SKU 已生成并保存");
+    await load();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "生成失败");
+  } finally {
+    generationSaving.value = false;
+  }
+}
 const router = useRouter();
 const route = useRoute();
 const images = ref<SkuImage[]>([]);
@@ -119,6 +252,65 @@ onMounted(load);
 </script>
 <template>
   <div class="pms-page">
+    <el-dialog
+      v-model="generationDialog"
+      title="生成 SKU"
+      width="min(1100px, 95vw)"
+      destroy-on-close
+      :close-on-click-modal="false"
+      :show-close="!generationSaving"
+      :close-on-press-escape="!generationSaving"
+    >
+      <el-select
+        v-model="selectedProduct"
+        filterable
+        placeholder="选择草稿或已下架的 SPU"
+        :disabled="generationLoading || generationSaving"
+        @change="selectGenerationProduct"
+      >
+        <el-option
+          v-for="product in productOptions"
+          :key="product.productId"
+          :label="product.name + ' / ' + product.productCode"
+          :value="product.productId"
+        />
+      </el-select>
+      <div v-if="generation" v-loading="generationLoading">
+        <el-alert
+          title="调整规格后，旧组合停用、新组合新建；相同组合保留已有资料。"
+          type="info"
+          :closable="false"
+        />
+        <ProductSpecifications
+          :key="String(generation.productId)"
+          :options="availableSales"
+          :selections="generation.salesAttributes"
+          :skus="generation.skus"
+          :disabled="generationLoading || generationSaving"
+          @generated="generated"
+          @dirty="generationDirty = $event"
+          @refresh="selectGenerationProduct"
+        />
+        <ProductSkuTable
+          v-model="generation.skus"
+          :disabled="generationSaving || generationDirty"
+        />
+      </div>
+      <template #footer>
+        <el-button
+          :disabled="generationSaving"
+          @click="generationDialog = false"
+          >取消</el-button
+        >
+        <el-button
+          type="primary"
+          :loading="generationSaving"
+          :disabled="generationLoading || !generation || generationDirty"
+          @click="saveGeneration"
+          >保存 SKU</el-button
+        >
+      </template>
+    </el-dialog>
     <el-alert
       v-if="filters.productId"
       :title="'当前筛选 SPU：' + filters.productId"
@@ -178,7 +370,13 @@ onMounted(load);
     </el-card>
     <el-card shadow="never" class="content-card">
       <div class="heading">
-        <p>维护零售价、条码和履约尺寸；新增规格请在 SPU 管理中操作。</p>
+        <p>选择 SPU 生成 SKU，维护零售价、条码和履约尺寸。</p>
+        <el-button
+          type="primary"
+          :loading="generationLoading"
+          @click="startGeneration"
+          >生成 SKU</el-button
+        >
       </div>
 
       <el-alert v-if="error" :title="error" type="error" :closable="false" />
@@ -227,7 +425,7 @@ onMounted(load);
           ></el-table-column
         >
         <template #empty
-          ><el-empty description="暂无 SKU，在 SPU 管理中创建商品"
+          ><el-empty description="暂无 SKU，选择 SPU 后生成 SKU"
             ><el-button @click="router.push('/pms/products')"
               >前往 SPU 管理</el-button
             ></el-empty

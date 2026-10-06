@@ -9,6 +9,7 @@ import {
 import { pmsRequest, type Brand } from "@/api/pms";
 import type { PageResult } from "@/api/tms";
 import { usePmsPage } from "../composables/usePmsPage";
+import BrandLogoUpload from "../components/BrandLogoUpload.vue";
 defineOptions({ name: "PmsBrands" });
 type BrandForm = Omit<Brand, "brandId" | "isEnable"> & {
   brandId?: string | number;
@@ -18,7 +19,7 @@ const query = reactive({
   keyword: "",
   isEnable: undefined,
   pageNum: 1,
-  pageSize: 20
+  pageSize: 10
 });
 const { rows, total, loading, failure, load } = usePmsPage(() =>
   pmsRequest<PageResult<Brand>>("get", "/brands", undefined, {
@@ -28,6 +29,7 @@ const { rows, total, loading, failure, load } = usePmsPage(() =>
 );
 const visible = ref(false);
 const saving = ref(false);
+const logoUploading = ref(false);
 const formRef = ref<FormInstance>();
 const empty = (): BrandForm => ({
   name: "",
@@ -47,8 +49,23 @@ const rules: FormRules = {
       message: "请输入品牌名称",
       trigger: "blur"
     }
-  ]
+  ],
+  logoUrl: [{ required: true, message: "请上传品牌Logo", trigger: "change" }]
 };
+function isHttpUrl(url?: string) {
+  return /^https?:\/\//i.test(url ?? "");
+}
+function formatDate(value?: number) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
 function search() {
   query.pageNum = 1;
   void load();
@@ -59,7 +76,8 @@ async function edit(row?: Brand) {
       ? await pmsRequest<Brand>("get", `/brands/${row.brandId}`)
       : undefined;
     Object.assign(form, empty(), { brandId: undefined }, data, {
-      isEnable: data?.isEnable ?? 1
+      isEnable: data?.isEnable ?? 1,
+      logoUrl: data?.logoUrl ?? ""
     });
     visible.value = true;
   } catch (error) {
@@ -82,6 +100,9 @@ async function save() {
   } finally {
     saving.value = false;
   }
+}
+function onLogoUploading(value: boolean) {
+  logoUploading.value = value;
 }
 async function remove(row: Brand) {
   try {
@@ -149,31 +170,85 @@ onMounted(load);
         type="error"
         :closable="false"
       />
+
       <el-table v-loading="loading" :data="rows" row-key="brandId">
+        <el-table-column type="index" width="55" align="center" label="序号" />
         <el-table-column
           prop="name"
           label="品牌名称"
-          min-width="160"
+          min-width="100"
+          show-overflow-tooltip
         /><el-table-column
           prop="englishName"
           label="英文名称"
-          min-width="160"
+          min-width="100"
+          show-overflow-tooltip
         />
         <el-table-column
           prop="websiteUrl"
           label="官网"
-          min-width="180"
+          min-width="160"
           show-overflow-tooltip
-        />
-        <el-table-column label="状态" width="100"
+          ><template #default="{ row }"
+            ><el-link
+              v-if="isHttpUrl(row.websiteUrl)"
+              :href="row.websiteUrl"
+              target="_blank"
+              rel="noopener"
+              type="primary"
+              >{{ row.websiteUrl }}</el-link
+            ><span v-else>{{ row.websiteUrl || "-" }}</span></template
+          ></el-table-column
+        >
+        <el-table-column label="品牌logo" width="150" align="center"
+          ><template #default="{ row }"
+            ><el-image
+              v-if="row.logoUrl"
+              :src="row.logoUrl"
+              fit="contain"
+              class="logo-thumb"
+              :preview-src-list="[row.logoUrl]"
+              preview-teleported
+              hide-on-click-modal
+            /><span v-else>-</span></template
+          ></el-table-column
+        >
+        <el-table-column label="状态" width="90" align="center"
           ><template #default="{ row }"
             ><el-tag :type="row.isEnable === 1 ? 'success' : 'info'">{{
               row.isEnable === 1 ? "启用" : "停用"
             }}</el-tag></template
           ></el-table-column
         >
-        <el-table-column prop="sortOrder" label="排序" width="90" />
-        <el-table-column label="操作" width="150"
+        <el-table-column
+          prop="creatorName"
+          label="创建人"
+          min-width="130"
+          show-overflow-tooltip
+          ><template #default="{ row }">{{
+            row.creatorName || "-"
+          }}</template></el-table-column
+        >
+        <el-table-column label="创建时间" min-width="180"
+          ><template #default="{ row }">{{
+            formatDate(row.createTime)
+          }}</template></el-table-column
+        >
+        <el-table-column
+          prop="updaterName"
+          label="更新人"
+          min-width="130"
+          show-overflow-tooltip
+          ><template #default="{ row }">{{
+            row.updaterName || "-"
+          }}</template></el-table-column
+        >
+        <el-table-column label="更新时间" min-width="180"
+          ><template #default="{ row }">{{
+            formatDate(row.updateTime)
+          }}</template></el-table-column
+        >
+        <el-table-column label="操作" min-width="150" align="right"
           ><template #default="{ row }"
             ><el-button link type="primary" @click="edit(row as Brand)"
               >编辑</el-button
@@ -187,7 +262,7 @@ onMounted(load);
         v-model:current-page="query.pageNum"
         v-model:page-size="query.pageSize"
         :total="total"
-        :page-sizes="[20, 50, 100]"
+        :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next"
         class="pagination"
         @current-change="load"
@@ -216,8 +291,11 @@ onMounted(load);
         <el-form-item label="英文名称"
           ><el-input v-model="form.englishName" maxlength="128"
         /></el-form-item>
-        <el-form-item label="Logo 地址"
-          ><el-input v-model="form.logoUrl" maxlength="1000"
+        <el-form-item label="Logo" prop="logoUrl"
+          ><BrandLogoUpload
+            v-model="form.logoUrl"
+            :disabled="saving"
+            @uploading="onLogoUploading"
         /></el-form-item>
         <el-form-item label="官网地址"
           ><el-input v-model="form.websiteUrl" maxlength="1000"
@@ -231,13 +309,14 @@ onMounted(load);
             ><el-radio :value="0">停用</el-radio></el-radio-group
           ></el-form-item
         >
-        <el-form-item label="排序"
-          ><el-input-number v-model="form.sortOrder" :min="0" :precision="0"
-        /></el-form-item>
       </el-form>
       <template #footer
         ><el-button :disabled="saving" @click="visible = false">取消</el-button
-        ><el-button type="primary" :loading="saving" @click="save"
+        ><el-button
+          type="primary"
+          :loading="saving"
+          :disabled="logoUploading"
+          @click="save"
           >保存</el-button
         ></template
       >
@@ -275,5 +354,15 @@ onMounted(load);
   display: flex;
   justify-content: flex-end;
   margin-top: 20px;
+}
+
+.logo-thumb {
+  /* 块级显示：120px 行内块会比 .cell 内容区宽 4px，触发 .cell 的
+     text-overflow: ellipsis，在右下角画出"··"杂点 */
+  display: block;
+  margin: 0 auto;
+  width: 120px;
+  height: 56px;
+  border-radius: 4px;
 }
 </style>

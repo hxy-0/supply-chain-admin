@@ -134,48 +134,52 @@ function generate() {
     <el-button v-if="failure" @click="loadValues">重新加载属性值</el-button>
     <p>选择规格值后生成 SKU。相同组合保留已填写资料，新组合需要填写零售价。</p>
     <div>
-      <div v-for="(axis, index) in axes" :key="index" class="axis">
-        <el-select
-          v-model="axis.attributeId"
-          :disabled="blocked"
-          placeholder="销售属性"
-          filterable
-          @change="select(axis)"
-          ><el-option
-            v-for="attribute in options"
-            :key="attribute.attributeId"
-            :value="attribute.attributeId"
-            :label="
-              attribute.name +
-              ('required' in attribute && attribute.required ? '（必填）' : '')
-            "
-            :disabled="
-              attribute.isEnable !== 1 ||
-              axes.some(
-                other =>
-                  other !== axis &&
-                  String(other.attributeId) === String(attribute.attributeId)
-              )
-            " /></el-select
-        ><el-select
-          v-model="axis.valueIds"
-          :disabled="blocked"
-          multiple
-          filterable
-          placeholder="选择属性值"
-          ><el-option
-            v-for="value in values[String(axis.attributeId)] || []"
-            :key="value.attributeValueId"
-            :value="value.attributeValueId"
-            :label="value.valueName"
-            :disabled="value.isEnable !== 1" /></el-select
-        ><el-button
-          :disabled="blocked || !axis.attributeId"
-          @click="manageValues(axis.attributeId)"
-          >维护值</el-button
-        ><el-button :disabled="blocked" @click="axes.splice(index, 1)"
-          >移除</el-button
-        >
+      <div class="sales-grid">
+        <div v-for="(axis, index) in axes" :key="index" class="axis">
+          <el-select
+            v-model="axis.attributeId"
+            :disabled="blocked"
+            placeholder="销售属性"
+            filterable
+            @change="select(axis)"
+            ><el-option
+              v-for="attribute in options"
+              :key="attribute.attributeId"
+              :value="attribute.attributeId"
+              :label="
+                attribute.name +
+                ('required' in attribute && attribute.required
+                  ? '（必填）'
+                  : '')
+              "
+              :disabled="
+                attribute.isEnable !== 1 ||
+                axes.some(
+                  other =>
+                    other !== axis &&
+                    String(other.attributeId) === String(attribute.attributeId)
+                )
+              " /></el-select
+          ><el-select
+            v-model="axis.valueIds"
+            :disabled="blocked"
+            multiple
+            filterable
+            placeholder="选择属性值"
+            ><el-option
+              v-for="value in values[String(axis.attributeId)] || []"
+              :key="value.attributeValueId"
+              :value="value.attributeValueId"
+              :label="value.valueName"
+              :disabled="value.isEnable !== 1" /></el-select
+          ><el-button
+            :disabled="blocked || !axis.attributeId"
+            @click="manageValues(axis.attributeId)"
+            >维护值</el-button
+          ><el-button :disabled="blocked" @click="axes.splice(index, 1)"
+            >移除</el-button
+          >
+        </div>
       </div>
       <el-button
         :disabled="blocked"
@@ -198,14 +202,28 @@ function generate() {
   </div>
 </template>
 <style scoped>
-.axis {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.sales-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
   margin-bottom: 12px;
 }
-
+.axis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
 .axis .el-select {
-  width: 220px;
+  width: 100%;
+  min-width: 0;
+}
+.axis .el-button {
+  margin-left: 0;
+}
+@media (max-width: 640px) {
+  .sales-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

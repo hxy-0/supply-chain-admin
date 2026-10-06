@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import ProductSpecifications from "../components/ProductSpecifications.vue";
 import ProductParameters from "../components/ProductParameters.vue";
-import ProductSkuTable from "../components/ProductSkuTable.vue";
-import SkuImages from "../components/SkuImages.vue";
-import SkuFields from "../components/SkuFields.vue";
 import ProductImages from "../components/ProductImages.vue";
-import type { PageResult } from "@/api/tms";
 import { categoryOptions } from "../category-options";
 import {
   ElMessage,
@@ -22,7 +17,6 @@ import {
   getProducts,
   saveProduct,
   pmsRequest,
-  type Id,
   type Brand,
   type Category,
   type Product,
@@ -30,8 +24,7 @@ import {
   getEnabledAttributes,
   getCategoryAttributes,
   type Attribute,
-  type CategoryAttribute,
-  type SkuDetail
+  type CategoryAttribute
 } from "@/api/pms";
 
 import { useRouter } from "vue-router";
@@ -82,34 +75,14 @@ const enabledBrands = computed(() =>
 const dialog = ref(false);
 const readonly = ref(false);
 const saving = ref(false);
+const imagesUploading = ref(false);
 const formRef = ref<FormInstance>();
 const detail = ref<Product>();
-const skuDetails = ref<SkuDetail[]>([]);
-const hasSpecifications = computed(
-  () => !!form.productId && form.skus.some(sku => sku.specSignature !== "")
-);
 const form = reactive<ProductCommand>(emptyForm());
-const specificationsDirty = ref(false);
-const editSpecifications = ref(false);
-watch(editSpecifications, value => {
-  if (value) specificationsDirty.value = true;
-});
 const template = ref<CategoryAttribute[]>([]);
 const attributeOptions = ref<Attribute[]>([]);
 const templateLoading = ref(false);
 const templateError = ref("");
-const salesOptions = computed(() =>
-  template.value.length
-    ? template.value.filter(item => item.attributeKind === 1)
-    : attributeOptions.value.filter(
-        item =>
-          item.inputType !== 3 &&
-          !form.attributes.some(
-            parameter =>
-              String(parameter.attributeId) === String(item.attributeId)
-          )
-      )
-);
 const parameterOptions = computed(() =>
   template.value.length
     ? template.value.filter(item => item.attributeKind === 2)
@@ -151,20 +124,11 @@ function changeCategory() {
   form.attributes = [];
   form.salesAttributes = [];
   form.skus = emptyForm().skus;
-  specificationsDirty.value = false;
   const category = categories.value.find(
     item => String(item.catId) === String(form.categoryId)
   );
   form.productUnit = category?.productUnit || "";
 }
-function generated(
-  selections: ProductCommand["salesAttributes"],
-  skus: ProductCommand["skus"]
-) {
-  form.salesAttributes = selections;
-  form.skus = skus;
-}
-
 const rules: FormRules = {
   productCode: [
     {
@@ -198,16 +162,7 @@ function emptyForm(): ProductCommand {
     attributes: [],
     images: [],
     salesAttributes: [],
-    skus: [
-      {
-        specSignature: "",
-        retailPrice: 0,
-        currencyCode: "CNY",
-        isEnable: 1,
-        isDefault: true,
-        images: []
-      }
-    ]
+    skus: []
   };
 }
 function errorMessage(error: unknown) {
@@ -260,10 +215,7 @@ function reset() {
   void loadProducts();
 }
 function create() {
-  editSpecifications.value = false;
-  specificationsDirty.value = false;
   detail.value = undefined;
-  skuDetails.value = [];
   Object.assign(form, emptyForm(), {
     productId: undefined,
     version: undefined
@@ -276,7 +228,6 @@ async function open(product: Product, view = false) {
   try {
     const data = await getProduct(product.productId);
     detail.value = data;
-    skuDetails.value = data.skus ?? [];
     readonly.value = view || data.status === 3;
     Object.assign(form, emptyForm(), {
       productId: data.productId,
@@ -295,37 +246,23 @@ async function open(product: Product, view = false) {
         ...image,
         imageType: image.imageType
       })),
-      skus: skuDetails.value.map(item => ({
-        ...item.sku,
-        isEnable: item.sku.isEnable,
-        images: item.images ?? []
-      }))
+      skus: []
     });
-    const axes = new Map<
-      string,
-      { attributeId: Id; valueIds: Id[]; sortOrder: number }
-    >();
-    const active = skuDetails.value.filter(item => item.sku.isEnable === 1);
-    for (const item of active.length ? active : skuDetails.value)
-      for (const value of item.attributes) {
-        const key = String(value.attributeId);
-        if (!axes.has(key))
-          axes.set(key, {
-            attributeId: value.attributeId,
-            valueIds: [],
-            sortOrder: axes.size
-          });
-        const axis = axes.get(key)!;
-        if (
-          !axis.valueIds.some(
-            id => String(id) === String(value.attributeValueId)
-          )
-        )
-          axis.valueIds.push(value.attributeValueId);
-      }
-    form.salesAttributes = [...axes.values()];
-    editSpecifications.value = false;
-    specificationsDirty.value = false;
+    if (
+      data.mainImageUrl &&
+      !form.images.some(image => image.imageUrl === data.mainImageUrl)
+    ) {
+      form.images.unshift({
+        imageUrl: data.mainImageUrl,
+        imageType: 1,
+        sortOrder: 0
+      });
+    }
+    const primaryIndex = form.images.findIndex(
+      image => image.imageUrl === data.mainImageUrl
+    );
+    if (primaryIndex > 0)
+      form.images.unshift(...form.images.splice(primaryIndex, 1));
     dialog.value = true;
     void loadTemplate();
   } catch (error) {
@@ -333,11 +270,8 @@ async function open(product: Product, view = false) {
   }
 }
 async function save() {
-  if (
-    (!form.productId || editSpecifications.value) &&
-    specificationsDirty.value
-  ) {
-    ElMessage.warning("销售属性已变更，请重新生成 SKU 后再保存");
+  if (imagesUploading.value) {
+    ElMessage.warning("请等待图片上传完成");
     return;
   }
   if (templateLoading.value || templateError.value) {
@@ -348,6 +282,20 @@ async function save() {
     ElMessage.warning("请填写每张图片的地址");
     return;
   }
+  if (
+    form.images.length &&
+    !form.images.some(image => image.imageUrl === form.mainImageUrl)
+  ) {
+    ElMessage.warning("请从照片墙中选择默认主图");
+    return;
+  }
+  if (
+    new Set(form.images.map(image => image.imageUrl.trim())).size !==
+    form.images.length
+  ) {
+    ElMessage.warning("请勿添加重复的图片地址");
+    return;
+  }
   if (!(await formRef.value?.validate().catch(() => false))) return;
   saving.value = true;
   try {
@@ -356,7 +304,7 @@ async function save() {
       productCode: form.productCode.trim(),
       name: form.name.trim()
     };
-    if (form.productId && !editSpecifications.value)
+    if (form.productId)
       await pmsRequest("patch", `/products/${form.productId}/details`, command);
     else await saveProduct(command);
     ElMessage.success(form.productId ? "商品已保存" : "商品草稿已创建");
@@ -473,7 +421,7 @@ onMounted(() => {
     </el-card>
     <el-card shadow="never" class="content-card">
       <div class="page-heading">
-        <p>维护商品资料、SKU 零售价与销售状态</p>
+        <p>维护 SPU 商品资料与销售状态</p>
         <el-button type="primary" :disabled="!!optionError" @click="create"
           >新增商品</el-button
         >
@@ -622,7 +570,7 @@ onMounted(() => {
     >
       <el-alert
         v-if="!form.productId"
-        title="新商品保存为草稿；可使用默认 SKU 或生成多规格 SKU，填写零售价后在列表上架。"
+        title="新商品保存为 SPU 草稿；请在 SKU 管理中生成规格并维护零售价后上架。"
         type="info"
         :closable="false"
         class="error-alert"
@@ -693,27 +641,10 @@ onMounted(() => {
                 maxlength="32"
                 placeholder="件 / 箱 / 千克" /></el-form-item
           ></el-col>
-          <el-col :span="12"
-            ><el-form-item label="排序"
-              ><el-input-number
-                v-model="form.sortOrder"
-                :min="0"
-                :precision="0" /></el-form-item
-          ></el-col>
         </el-row>
-        <el-form-item label="副标题"
-          ><el-input v-model="form.subtitle" maxlength="500"
-        /></el-form-item>
-        <el-form-item label="主图地址"
-          ><el-input
-            v-model="form.mainImageUrl"
-            maxlength="1000"
-            placeholder="https://…"
-        /></el-form-item>
         <el-form-item label="商品描述"
           ><el-input v-model="form.description" type="textarea" :rows="3"
         /></el-form-item>
-        <el-divider content-position="left">SKU 与零售价</el-divider>
 
         <el-alert
           v-if="templateError"
@@ -724,24 +655,6 @@ onMounted(() => {
         <el-button v-if="templateError" @click="loadTemplate"
           >重新加载配置</el-button
         >
-        <el-checkbox
-          v-if="form.productId && !readonly && detail?.status !== 1"
-          v-model="editSpecifications"
-          >调整商品规格（旧组合停用，新组合新建）</el-checkbox
-        >
-        <ProductSpecifications
-          v-if="!readonly && (!form.productId || editSpecifications)"
-          :key="String(form.productId || 'new') + ':' + String(form.categoryId)"
-          :options="salesOptions"
-          :selections="form.salesAttributes"
-          :skus="form.skus"
-          :disabled="
-            templateLoading || saving || !!templateError || !form.categoryId
-          "
-          @generated="generated"
-          @dirty="specificationsDirty = $event"
-          @refresh="loadTemplate"
-        />
         <el-divider content-position="left">普通参数</el-divider>
         <ProductParameters
           v-model="form.attributes"
@@ -749,59 +662,12 @@ onMounted(() => {
           :disabled="readonly || saving"
         />
         <el-divider content-position="left">商品图片</el-divider>
-        <ProductImages v-model="form.images" :disabled="readonly || saving" />
-
-        <el-alert
-          v-if="hasSpecifications && !readonly"
-          title="此处编辑 SPU 基本资料，规格及价格在 SKU 管理中维护。"
-          type="info"
-          :closable="false"
+        <ProductImages
+          v-model="form.images"
+          v-model:main-image-url="form.mainImageUrl"
+          :disabled="readonly || saving"
+          @uploading="imagesUploading = $event"
         />
-        <ProductSkuTable
-          v-if="
-            (!form.productId || editSpecifications) &&
-            form.salesAttributes.length
-          "
-          v-model="form.skus"
-          :disabled="saving"
-        />
-
-        <div
-          v-if="
-            !readonly &&
-            (!form.productId || editSpecifications) &&
-            form.skus.length === 1 &&
-            (!hasSpecifications || editSpecifications) &&
-            !form.salesAttributes.length
-          "
-          class="sku-form"
-        >
-          <SkuImages v-model="form.skus[0].images" :disabled="saving" />
-          <SkuFields
-            v-model:sku="form.skus[0]"
-            prefix="skus.0"
-            :disabled="saving"
-          />
-        </div>
-        <el-table
-          v-else-if="(form.productId && !editSpecifications) || readonly"
-          :data="skuDetails.map(item => item.sku)"
-        >
-          <el-table-column prop="skuCode" label="SKU 编码" min-width="120" />
-          <el-table-column label="规格" min-width="160"
-            ><template #default="{ row }">{{
-              row.specText || "默认规格"
-            }}</template></el-table-column
-          >
-          <el-table-column prop="barcode" label="条码" min-width="120" />
-          <el-table-column prop="retailPrice" label="零售价" width="110" />
-          <el-table-column prop="currencyCode" label="币种" width="80" />
-          <el-table-column label="状态" width="90"
-            ><template #default="{ row }">{{
-              row.isEnable === 1 ? "启用" : "停用"
-            }}</template></el-table-column
-          >
-        </el-table>
       </el-form>
       <template v-if="readonly && detail?.attributes?.length">
         <el-divider content-position="left">商品参数</el-divider>
@@ -824,6 +690,7 @@ onMounted(() => {
           v-if="!readonly"
           type="primary"
           :loading="saving"
+          :disabled="imagesUploading"
           @click="save"
           >保存{{ form.productId ? "" : "草稿" }}</el-button
         ></template

@@ -22,6 +22,12 @@ export interface Brand {
   websiteUrl?: string;
   description?: string;
   sortOrder?: number;
+  createUser?: string;
+  createTime?: number;
+  updateUser?: string;
+  updateTime?: number;
+  creatorName?: string;
+  updaterName?: string;
 }
 export interface ProductAttribute {
   attributeId: Id;
@@ -200,3 +206,18 @@ export const saveCategoryAttributes = (
     items,
     expectedItems
   });
+
+export async function uploadProductImage(file: File): Promise<string> {
+  const data = new FormData();
+  data.append("file", file);
+  const result = await http.request<Result<{ url: string }>>(
+    "post",
+    "/api/product-images",
+    {
+      data,
+      headers: { "Content-Type": "multipart/form-data" }
+    }
+  );
+  if (result.code !== 0) throw new Error(result.message || "图片上传失败");
+  return result.data.url;
+}

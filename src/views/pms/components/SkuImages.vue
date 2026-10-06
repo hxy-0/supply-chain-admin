@@ -23,14 +23,6 @@ function primary(index: number) {
             :disabled="disabled"
             @change="primary($index)"
             ><span /></el-radio></template></el-table-column
-      ><el-table-column label="排序" width="125"
-        ><template #default="{ row }"
-          ><el-input-number
-            v-model="row.sortOrder"
-            :min="0"
-            :precision="0"
-            style="width: 105px"
-            :disabled="disabled" /></template></el-table-column
       ><el-table-column v-if="!disabled" width="70"
         ><template #default="{ $index }"
           ><el-button link type="danger" @click="images.splice($index, 1)"

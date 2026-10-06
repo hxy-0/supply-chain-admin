@@ -93,41 +93,68 @@ function updateCustom(attribute: Attribute, value: string) {
       description="当前分类未配置普通参数"
       :image-size="50"
     />
-    <el-form-item
-      v-for="attribute in options"
-      :key="attribute.attributeId"
-      :label="
-        attribute.name + (attribute.unit ? ' (' + attribute.unit + ')' : '')
-      "
-      :required="'required' in attribute && attribute.required"
-    >
-      <el-input
-        v-if="attribute.inputType === 3"
-        :model-value="custom(attribute)"
-        maxlength="1000"
-        :disabled="disabled"
-        @update:model-value="updateCustom(attribute, $event)"
-      />
-      <el-select
-        v-else
-        :model-value="
-          attribute.inputType === 2
-            ? selection(attribute)
-            : selection(attribute)[0]
+    <div class="parameter-grid">
+      <el-form-item
+        v-for="attribute in options"
+        :key="attribute.attributeId"
+        label-position="top"
+        :label="
+          attribute.name + (attribute.unit ? ' (' + attribute.unit + ')' : '')
         "
-        :multiple="attribute.inputType === 2"
-        clearable
-        filterable
-        :disabled="disabled"
-        style="width: 100%"
-        @update:model-value="update(attribute, $event)"
-        ><el-option
-          v-for="value in values[String(attribute.attributeId)] || []"
-          :key="value.attributeValueId"
-          :value="value.attributeValueId"
-          :label="value.valueName"
-          :disabled="value.isEnable !== 1"
-      /></el-select>
-    </el-form-item>
+        :required="'required' in attribute && attribute.required"
+      >
+        <el-input
+          v-if="attribute.inputType === 3"
+          :model-value="custom(attribute)"
+          maxlength="1000"
+          :disabled="disabled"
+          @update:model-value="updateCustom(attribute, $event)"
+        />
+        <el-select
+          v-else
+          :model-value="
+            attribute.inputType === 2
+              ? selection(attribute)
+              : selection(attribute)[0]
+          "
+          :multiple="attribute.inputType === 2"
+          clearable
+          filterable
+          :disabled="disabled"
+          style="width: 100%"
+          @update:model-value="update(attribute, $event)"
+          ><el-option
+            v-for="value in values[String(attribute.attributeId)] || []"
+            :key="value.attributeValueId"
+            :value="value.attributeValueId"
+            :label="value.valueName"
+            :disabled="value.isEnable !== 1"
+        /></el-select>
+      </el-form-item>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.parameter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 20px;
+}
+.parameter-grid :deep(.el-form-item) {
+  min-width: 0;
+}
+.parameter-grid :deep(.el-form-item__label) {
+  height: auto;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+.parameter-grid :deep(.el-form-item__content) {
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .parameter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>
