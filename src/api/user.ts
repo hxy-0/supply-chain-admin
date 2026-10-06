@@ -41,6 +41,8 @@ export type RefreshTokenResult = {
 };
 
 export type UserInfo = {
+  /** 是否已设置本系统登录密码 */
+  hasPassword: boolean;
   /** 头像 */
   avatar: string;
   /** 用户名 */

@@ -33,12 +33,59 @@ const defaultConfig: AxiosRequestConfig = {
 };
 
 class PureHttp {
+  private static readonly refreshAheadMillis = 60_000;
+  private static readonly publicEndpoints = new Set([
+    "/auth/login",
+    "/auth/refresh-token",
+    "/auth/code",
+    "/auth/code-login",
+    "/auth/register",
+    "/auth/reset-password",
+    "/auth/github/authorize",
+    "/auth/github/callback",
+    "/auth/feishu/authorize",
+    "/auth/feishu/callback",
+    "/auth/logout"
+  ]);
   constructor() {
     this.httpInterceptorsRequest();
     this.httpInterceptorsResponse();
   }
 
   private static refreshPromise: Promise<string> | null = null;
+
+  private static expireSession() {
+    if (!getToken()) return;
+    useUserStoreHook().logOut();
+    message(transformI18n($t("login.pureLoginExpired")), { type: "warning" });
+  }
+
+  /** 请求前刷新和收到 401 后刷新共用同一任务，避免并发消费一次性刷新令牌。 */
+  private static refreshAccessToken(): Promise<string> {
+    if (PureHttp.refreshPromise) return PureHttp.refreshPromise;
+    const data = getToken();
+    if (
+      !data?.refreshToken ||
+      !Number.isFinite(Number(data.refreshExpires)) ||
+      Number(data.refreshExpires) <= Date.now()
+    ) {
+      PureHttp.expireSession();
+      return Promise.reject(new Error("登录已失效，请重新登录"));
+    }
+    PureHttp.refreshPromise = useUserStoreHook()
+      .handRefreshToken({ refreshToken: data.refreshToken })
+      .then(res => res.data.accessToken)
+      .catch(error => {
+        const status = error.response?.status ?? error.code;
+        if (status === 401 || status === 403) PureHttp.expireSession();
+        // 超时、断网及服务异常保留会话，让用户可以稍后重试。
+        throw error;
+      })
+      .finally(() => {
+        PureHttp.refreshPromise = null;
+      });
+    return PureHttp.refreshPromise;
+  }
 
   /** 初始化配置对象 */
   private static initConfig: PureHttpRequestConfig = {};
@@ -60,53 +107,24 @@ class PureHttp {
           return config;
         }
         /** 请求白名单，放置一些不需要`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题） */
-        const whiteList = [
-          "/auth/login",
-          "/auth/refresh-token",
-          "/auth/code",
-          "/auth/code-login",
-          "/auth/register",
-          "/auth/reset-password",
-          "/auth/github/authorize",
-          "/auth/github/callback",
-          "/auth/feishu/authorize",
-          "/auth/feishu/callback",
-          "/auth/logout"
-        ];
-        if (whiteList.includes(config.url)) {
+        if (PureHttp.publicEndpoints.has(config.url)) {
           return config;
         }
         const data = getToken();
         if (!data) {
           return config;
         }
-        if (Number(data.refreshExpires) <= Date.now()) {
-          useUserStoreHook().logOut();
-          message(transformI18n($t("login.pureLoginExpired")), {
-            type: "warning"
-          });
-          throw new Error("登录已过期");
+        if (
+          !data.refreshToken ||
+          !Number.isFinite(Number(data.refreshExpires)) ||
+          Number(data.refreshExpires) <= Date.now()
+        ) {
+          PureHttp.expireSession();
+          throw new Error("登录已失效，请重新登录");
         }
-        if (Number(data.expires) <= Date.now() + 30_000) {
-          if (!PureHttp.refreshPromise) {
-            PureHttp.refreshPromise = useUserStoreHook()
-              .handRefreshToken({ refreshToken: data.refreshToken })
-              .then(res => res.data.accessToken)
-              .catch(error => {
-                if (error.response?.status === 401 || error === "登录已过期") {
-                  useUserStoreHook().logOut();
-                  message(transformI18n($t("login.pureLoginExpired")), {
-                    type: "warning"
-                  });
-                }
-                throw error;
-              })
-              .finally(() => {
-                PureHttp.refreshPromise = null;
-              });
-          }
+        if (Number(data.expires) <= Date.now() + PureHttp.refreshAheadMillis) {
           config.headers["Authorization"] = formatToken(
-            await PureHttp.refreshPromise
+            await PureHttp.refreshAccessToken()
           );
         } else {
           config.headers["Authorization"] = formatToken(data.accessToken);
@@ -136,9 +154,36 @@ class PureHttp {
         }
         return response.data;
       },
-      (error: PureHttpError) => {
+      async (error: PureHttpError) => {
         const $error = error;
         $error.isCancelRequest = Axios.isCancel($error);
+        const config = error.config as PureHttpRequestConfig | undefined;
+        if (
+          error.response?.status === 401 &&
+          config &&
+          !PureHttp.publicEndpoints.has(config.url) &&
+          !$error.isCancelRequest
+        ) {
+          if (config.authRetried) {
+            PureHttp.expireSession();
+            throw error;
+          }
+          const current = getToken();
+          if (!current) throw error;
+          config.authRetried = true;
+          // 延迟返回的旧请求可以直接使用其他请求刚刷新的令牌。
+          const failedAuthorization = config.headers?.Authorization;
+          const accessToken =
+            failedAuthorization !== formatToken(current.accessToken) &&
+            Number(current.expires) > Date.now()
+              ? current.accessToken
+              : await PureHttp.refreshAccessToken();
+          config.headers = {
+            ...config.headers,
+            Authorization: formatToken(accessToken)
+          };
+          return instance.request(config);
+        }
         // 所有的响应异常 区分来源为取消请求/非取消请求
         return Promise.reject($error);
       }

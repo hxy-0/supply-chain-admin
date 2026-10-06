@@ -23,6 +23,8 @@ export interface PureHttpResponse extends AxiosResponse {
 }
 
 export interface PureHttpRequestConfig extends AxiosRequestConfig {
+  /** 401 刷新后最多重发一次，防止循环刷新。 */
+  authRetried?: boolean;
   beforeRequestCallback?: (request: PureHttpRequestConfig) => void;
   beforeResponseCallback?: (response: PureHttpResponse) => void;
 }

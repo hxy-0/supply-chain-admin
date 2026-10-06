@@ -120,7 +120,9 @@ export const useUserStore = defineStore("pure-user", {
               setToken(data.data);
               resolve(data);
             } else {
-              reject(data.message);
+              reject(
+                Object.assign(new Error(data.message), { code: data.code })
+              );
             }
           })
           .catch(error => {
