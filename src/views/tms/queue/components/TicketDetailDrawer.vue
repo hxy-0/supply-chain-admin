@@ -97,7 +97,7 @@ const events = {
         ><b>{{ events[log.eventType] || log.eventType }}</b>
         <p>{{ log.detail || "-" }}</p>
         <p>
-          操作人：{{ log.operator || "-" }} · {{ log.fromStatus ?? "-" }} →
+          操作人：{{ log.createUser || "-" }} · {{ log.fromStatus ?? "-" }} →
           {{ log.toStatus ?? "-" }}
         </p></el-timeline-item
       ></el-timeline

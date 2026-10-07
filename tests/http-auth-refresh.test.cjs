@@ -35,7 +35,8 @@ function setup(options = {}) {
     }
   };
   const store = {
-    logOut() {
+    logOut(preserveRedirect) {
+      assert.equal(preserveRedirect, true);
       logouts++;
       token = null;
     },
@@ -133,7 +134,15 @@ function setup(options = {}) {
     }
   }).outputText;
   const module = { exports: {} };
-  new Function("require", "module", "exports", "window", "document", compiled)(
+  new Function(
+    "require",
+    "module",
+    "exports",
+    "window",
+    "document",
+    "navigator",
+    compiled
+  )(
     name => {
       assert.ok(name in imports, "Unexpected import: " + name);
       return imports[name];
@@ -141,7 +150,17 @@ function setup(options = {}) {
     module,
     module.exports,
     window,
-    document
+    document,
+    options.beforeLock
+      ? {
+          locks: {
+            request: async (_name, callback) => {
+              options.beforeLock(token);
+              return callback();
+            }
+          }
+        }
+      : {}
   );
   http = module.exports.http;
   return {
@@ -242,7 +261,33 @@ test("second 401 stops after one replay", async () => {
   await assert.rejects(state.http.request("get", "/protected"));
   assert.equal(state.refreshes, 1);
   assert.equal(state.calls.length, 3);
-  assert.equal(state.logouts, 1);
+  assert.equal(state.logouts, 0);
+  assert.ok(state.token);
+});
+
+test("another tab's rotated token is reused after acquiring the refresh lock", async () => {
+  const state = setup({
+    token: { expires: Date.now() - 1 },
+    beforeLock: token => {
+      token.accessToken = "new-access";
+      token.refreshToken = "another-tab-refresh";
+      token.expires = Date.now() + 600000;
+    }
+  });
+  await state.http.request("get", "/protected");
+  assert.equal(state.refreshes, 0);
+  assert.equal(state.logouts, 0);
+  assert.equal(state.calls[0].authorization, "Bearer new-access");
+});
+
+test("expired access token refreshes without shortening a seven-day session", async () => {
+  const refreshExpires = Date.now() + 7 * 86400000;
+  const state = setup({ token: { expires: Date.now() - 1, refreshExpires } });
+  await state.http.request("post", "/protected", { data: { value: 7 } });
+  assert.equal(state.refreshes, 1);
+  assert.equal(state.logouts, 0);
+  assert.equal(state.token.refreshExpires, refreshExpires);
+  assert.equal(state.calls[1].data, '{"value":7}');
 });
 
 test("public login rejection never triggers token refresh", async () => {

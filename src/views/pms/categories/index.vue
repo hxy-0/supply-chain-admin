@@ -216,7 +216,7 @@ onMounted(load);
             <span>分类名称</span>
             <span>分类 ID</span>
             <span>层级</span>
-            <span>商品单位</span>
+            <span>销售规格</span>
             <span>状态</span>
             <span>操作</span>
           </div>
@@ -317,7 +317,7 @@ onMounted(load);
             placeholder="请选择父分类"
             class="parent-select"
         /></el-form-item>
-        <el-form-item label="商品单位"
+        <el-form-item label="销售规格"
           ><el-input v-model="form.productUnit" maxlength="50"
         /></el-form-item>
         <el-form-item label="图标地址"

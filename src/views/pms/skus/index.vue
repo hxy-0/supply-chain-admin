@@ -1,144 +1,34 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 import { ElMessage, type FormInstance } from "element-plus";
 import { pmsRequest, type Sku, type SkuImage, type Id } from "@/api/pms";
 import type { PageResult } from "@/api/tms";
 import { useRouter, useRoute } from "vue-router";
 import SkuFields from "../components/SkuFields.vue";
 import { usePmsPage } from "../composables/usePmsPage";
+import SkuPrices from "../components/SkuPrices.vue";
+import SkuBarcode from "../components/SkuBarcode.vue";
 defineOptions({ name: "PmsSkus" });
 import SkuImages from "../components/SkuImages.vue";
-import {
-  getProducts,
-  getProduct,
-  getCategoryAttributes,
-  getEnabledAttributes,
-  saveProduct,
-  type Product,
-  type ProductCommand,
-  type Attribute,
-  type CategoryAttribute
-} from "@/api/pms";
-import ProductSpecifications from "../components/ProductSpecifications.vue";
-import ProductSkuTable from "../components/ProductSkuTable.vue";
-const generationDialog = ref(false);
-const generationLoading = ref(false);
-const generationSaving = ref(false);
-const generationDirty = ref(false);
+import { getProducts, type Product } from "@/api/pms";
 const productOptions = ref<Product[]>([]);
-const selectedProduct = ref<Id>();
-const generation = ref<ProductCommand>();
-const generationOptions = ref<(Attribute | CategoryAttribute)[]>([]);
-const availableSales = computed(() =>
-  generationOptions.value.filter(
-    item =>
-      !generation.value?.attributes.some(
-        parameter => String(parameter.attributeId) === String(item.attributeId)
-      )
-  )
-);
-async function startGeneration() {
+const productsLoading = ref(false);
+async function loadProducts() {
+  productsLoading.value = true;
   try {
-    generationLoading.value = true;
-    productOptions.value = [];
+    const products: Product[] = [];
     let pageNum = 1;
     while (true) {
       const page = await getProducts({ pageNum, pageSize: 200 });
-      productOptions.value.push(
-        ...page.records.filter(
-          product => product.status === 0 || product.status === 2
-        )
-      );
-      if (pageNum * 200 >= Number(page.total)) break;
+      products.push(...page.records);
+      if (!page.records.length || products.length >= Number(page.total)) break;
       pageNum++;
     }
-    generation.value = undefined;
-    selectedProduct.value = filters.productId;
-    generationDialog.value = true;
-    if (selectedProduct.value) await selectGenerationProduct();
+    productOptions.value = products;
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "商品加载失败");
+    ElMessage.error(error instanceof Error ? error.message : "SPU 加载失败");
   } finally {
-    generationLoading.value = false;
-  }
-}
-async function selectGenerationProduct() {
-  generation.value = undefined;
-  if (!selectedProduct.value) return;
-  generationLoading.value = true;
-  try {
-    const product = await getProduct(selectedProduct.value);
-    const [template, attributes] = await Promise.all([
-      getCategoryAttributes(product.categoryId),
-      getEnabledAttributes()
-    ]);
-    generationOptions.value = template.length
-      ? template.filter(item => item.attributeKind === 1)
-      : attributes.filter(item => item.inputType !== 3);
-    const axes = new Map<string, ProductCommand["salesAttributes"][number]>();
-    for (const detail of product.skus ?? []) {
-      if (detail.sku.isEnable !== 1) continue;
-      for (const attribute of detail.attributes) {
-        const key = String(attribute.attributeId);
-        if (!axes.has(key))
-          axes.set(key, {
-            attributeId: attribute.attributeId,
-            valueIds: [],
-            sortOrder: axes.size
-          });
-        const axis = axes.get(key)!;
-        if (
-          !axis.valueIds.some(
-            id => String(id) === String(attribute.attributeValueId)
-          )
-        )
-          axis.valueIds.push(attribute.attributeValueId);
-      }
-    }
-    generation.value = {
-      ...product,
-      attributes: product.attributes ?? [],
-      images: product.images ?? [],
-      salesAttributes: [...axes.values()],
-      skus: (product.skus ?? []).map(detail => ({
-        ...detail.sku,
-        images: detail.images ?? []
-      }))
-    };
-    generationDirty.value = true;
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "配置加载失败");
-  } finally {
-    generationLoading.value = false;
-  }
-}
-function generated(
-  selections: ProductCommand["salesAttributes"],
-  skus: ProductCommand["skus"]
-) {
-  generation.value!.salesAttributes = selections;
-  generation.value!.skus = skus;
-  generationDirty.value = false;
-}
-async function saveGeneration() {
-  if (
-    !generation.value ||
-    generationDirty.value ||
-    !generation.value.skus.length
-  ) {
-    ElMessage.warning("请先生成 SKU 后再保存");
-    return;
-  }
-  generationSaving.value = true;
-  try {
-    await saveProduct(generation.value);
-    generationDialog.value = false;
-    ElMessage.success("SKU 已生成并保存");
-    await load();
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "生成失败");
-  } finally {
-    generationSaving.value = false;
+    productsLoading.value = false;
   }
 }
 const router = useRouter();
@@ -185,8 +75,38 @@ interface SkuRow {
   productName: string;
   productCode: string;
 }
+const priceDialog = ref(false);
+const priceTargets = ref<Sku[]>([]);
+function editPrices(items: SkuRow[]) {
+  priceTargets.value = items.map(item => item.sku);
+  priceDialog.value = true;
+}
+const selectedRows = ref<SkuRow[]>([]);
+const barcodeGenerating = ref(false);
+async function generateBarcodes(items: SkuRow[]) {
+  if (barcodeGenerating.value) return;
+  const skuIds = items
+    .filter(item => !item.sku.barcode)
+    .map(item => item.sku.skuId);
+  if (!skuIds.length) {
+    ElMessage.info("所选 SKU 已有条码");
+    return;
+  }
+  barcodeGenerating.value = true;
+  try {
+    await pmsRequest("post", "/skus/barcodes", { skuIds });
+    ElMessage.success("内部条码已生成");
+    selectedRows.value = [];
+    await load();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "条码生成失败");
+  } finally {
+    barcodeGenerating.value = false;
+  }
+}
 const filters = reactive({
-  keyword: "",
+  skuCode: "",
+  barcode: "",
   productId: route.query.productId
     ? (String(route.query.productId) as Id)
     : undefined,
@@ -203,7 +123,8 @@ const {
 } = usePmsPage(() =>
   pmsRequest<PageResult<SkuRow>>("get", "/skus", undefined, {
     ...filters,
-    keyword: filters.keyword.trim() || undefined
+    skuCode: filters.skuCode.trim() || undefined,
+    barcode: filters.barcode.trim() || undefined
   })
 );
 const dialog = ref(false);
@@ -211,8 +132,7 @@ const saving = ref(false);
 const formRef = ref<FormInstance>();
 const form = reactive<Sku>({
   specSignature: "",
-  retailPrice: 0,
-  currencyCode: "CNY",
+
   isEnable: 1
 });
 function search() {
@@ -248,78 +168,21 @@ watch(
     search();
   }
 );
-onMounted(load);
+onMounted(() => {
+  void load();
+  void loadProducts();
+});
 </script>
 <template>
   <div class="pms-page">
-    <el-dialog
-      v-model="generationDialog"
-      title="生成 SKU"
-      width="min(1100px, 95vw)"
-      destroy-on-close
-      :close-on-click-modal="false"
-      :show-close="!generationSaving"
-      :close-on-press-escape="!generationSaving"
-    >
-      <el-select
-        v-model="selectedProduct"
-        filterable
-        placeholder="选择草稿或已下架的 SPU"
-        :disabled="generationLoading || generationSaving"
-        @change="selectGenerationProduct"
-      >
-        <el-option
-          v-for="product in productOptions"
-          :key="product.productId"
-          :label="product.name + ' / ' + product.productCode"
-          :value="product.productId"
-        />
-      </el-select>
-      <div v-if="generation" v-loading="generationLoading">
-        <el-alert
-          title="调整规格后，旧组合停用、新组合新建；相同组合保留已有资料。"
-          type="info"
-          :closable="false"
-        />
-        <ProductSpecifications
-          :key="String(generation.productId)"
-          :options="availableSales"
-          :selections="generation.salesAttributes"
-          :skus="generation.skus"
-          :disabled="generationLoading || generationSaving"
-          @generated="generated"
-          @dirty="generationDirty = $event"
-          @refresh="selectGenerationProduct"
-        />
-        <ProductSkuTable
-          v-model="generation.skus"
-          :disabled="generationSaving || generationDirty"
-        />
-      </div>
-      <template #footer>
-        <el-button
-          :disabled="generationSaving"
-          @click="generationDialog = false"
-          >取消</el-button
-        >
-        <el-button
-          type="primary"
-          :loading="generationSaving"
-          :disabled="generationLoading || !generation || generationDirty"
-          @click="saveGeneration"
-          >保存 SKU</el-button
-        >
-      </template>
-    </el-dialog>
-    <el-alert
-      v-if="filters.productId"
-      :title="'当前筛选 SPU：' + filters.productId"
-      type="info"
-      :closable="false"
-      ><el-button link @click="router.replace('/pms/skus')"
-        >查看全部 SKU</el-button
-      ></el-alert
-    >
+    <SkuPrices
+      v-model="priceDialog"
+      :targets="priceTargets"
+      @saved="
+        selectedRows = [];
+        load();
+      "
+    />
     <el-dialog
       v-model="imageDialog"
       title="SKU 图片"
@@ -338,13 +201,31 @@ onMounted(load);
     >
     <el-card shadow="never" class="query-card">
       <el-form inline @submit.prevent="search">
-        <el-form-item label="关键词"
+        <el-form-item label="SPU">
+          <el-select
+            v-model="filters.productId"
+            filterable
+            clearable
+            :loading="productsLoading"
+            placeholder="选择 SPU"
+            style="width: 240px"
+          >
+            <el-option
+              v-for="product in productOptions"
+              :key="String(product.productId)"
+              :label="product.name + ' / ' + product.productCode"
+              :value="String(product.productId)"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="SKU 编码"
           ><el-input
-            v-model="filters.keyword"
-            placeholder="商品名 / SKU 编码 / 条码"
+            v-model="filters.skuCode"
+            placeholder="SKU 编码"
             clearable
             @keyup.enter="search"
         /></el-form-item>
+
         <el-form-item label="状态"
           ><el-select
             v-model="filters.isEnable"
@@ -359,7 +240,9 @@ onMounted(load);
           ><el-button type="primary" @click="search">查询</el-button
           ><el-button
             @click="
-              filters.keyword = '';
+              filters.productId = undefined;
+              filters.skuCode = '';
+              filters.barcode = '';
               filters.isEnable = undefined;
               search();
             "
@@ -369,45 +252,54 @@ onMounted(load);
       </el-form>
     </el-card>
     <el-card shadow="never" class="content-card">
-      <div class="heading">
-        <p>选择 SPU 生成 SKU，维护零售价、条码和履约尺寸。</p>
-        <el-button
-          type="primary"
-          :loading="generationLoading"
-          @click="startGeneration"
-          >生成 SKU</el-button
-        >
-      </div>
-
+      <el-button
+        type="primary"
+        :loading="barcodeGenerating"
+        :disabled="loading || !selectedRows.length"
+        @click="generateBarcodes(selectedRows)"
+      >
+        生成所选内部条码
+      </el-button>
+      <el-button
+        :disabled="loading || !selectedRows.length"
+        @click="editPrices(selectedRows)"
+        >批量维护价格</el-button
+      >
       <el-alert v-if="error" :title="error" type="error" :closable="false" />
       <el-table
         v-loading="loading"
         :data="rows"
         :row-key="row => String(row.sku.skuId)"
+        @selection-change="selectedRows = $event"
       >
+        <el-table-column type="selection" width="48" />
         <el-table-column
           prop="productName"
           label="所属 SPU"
-          min-width="160"
+          min-width="100"
         /><el-table-column
           prop="sku.skuCode"
           label="SKU 编码"
-          min-width="140"
+          min-width="180"
         />
-        <el-table-column label="规格" min-width="180"
+        <el-table-column label="销售规格" min-width="240"
           ><template #default="{ row }">{{
             row.sku.specText || "默认规格"
           }}</template></el-table-column
         >
-        <el-table-column
-          prop="sku.barcode"
-          label="条码"
-          min-width="140"
-        /><el-table-column
-          prop="sku.retailPrice"
-          label="零售价"
-          width="120"
-        /><el-table-column prop="sku.currencyCode" label="币种" width="90" />
+        <el-table-column label="条码" min-width="310" align="center">
+          <template #default="{ row }">
+            <SkuBarcode v-if="row.sku.barcode" :value="row.sku.barcode" />
+            <el-button
+              v-if="!row.sku.barcode"
+              type="primary"
+              link
+              :disabled="barcodeGenerating"
+              @click="generateBarcodes([row as SkuRow])"
+              >生成内部条码</el-button
+            >
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100"
           ><template #default="{ row }"
             ><el-tag :type="row.sku.isEnable === 1 ? 'success' : 'info'">{{
@@ -415,8 +307,10 @@ onMounted(load);
             }}</el-tag></template
           ></el-table-column
         >
-        <el-table-column label="操作" width="170"
+        <el-table-column label="操作" width="220" align="center"
           ><template #default="{ row }"
+            ><el-button type="primary" link @click="editPrices([row as SkuRow])"
+              >价格维护</el-button
             ><el-button type="primary" link @click="editImages(row as SkuRow)"
               >图片</el-button
             ><el-button type="primary" link @click="edit(row as SkuRow)"
@@ -425,7 +319,7 @@ onMounted(load);
           ></el-table-column
         >
         <template #empty
-          ><el-empty description="暂无 SKU，选择 SPU 后生成 SKU"
+          ><el-empty description="暂无 SKU"
             ><el-button @click="router.push('/pms/products')"
               >前往 SPU 管理</el-button
             ></el-empty
@@ -485,15 +379,7 @@ onMounted(load);
   display: flex;
   flex-wrap: wrap;
   gap: 16px 0;
-}
-
-.heading {
-  margin-bottom: 24px;
-}
-
-.heading p {
-  margin: 0;
-  color: var(--el-text-color-secondary);
+  justify-content: flex-start;
 }
 
 .pagination {

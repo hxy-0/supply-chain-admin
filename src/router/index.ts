@@ -227,3 +227,11 @@ router.afterEach((to, _from, failure) => {
 });
 
 export default router;
+
+// 路由模块热更新会创建新实例，但已挂载的应用仍注入旧实例。
+// 开发时重新加载应用，确保导航代码与 RouterView 使用同一个路由实例。
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    window.location.reload();
+  });
+}

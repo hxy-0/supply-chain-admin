@@ -55,8 +55,7 @@ export interface Sku {
   skuCode?: string;
   barcode?: string;
   name?: string;
-  retailPrice: number;
-  currencyCode: string;
+
   weightKg?: number;
   lengthCm?: number;
   widthCm?: number;
@@ -73,6 +72,7 @@ export interface SkuDetail {
     attributeValueId: Id;
     attributeName?: string;
     attributeValueName?: string;
+    sortOrder?: number;
   }[];
   images: SkuImage[];
 }
@@ -96,6 +96,7 @@ export interface Product {
   attributes?: ProductAttribute[];
   images?: ProductImage[];
   skus?: SkuDetail[];
+  salesAttributes?: ProductCommand["salesAttributes"];
 }
 export interface ProductCommand {
   version?: number;
@@ -114,8 +115,6 @@ export interface ProductCommand {
   salesAttributes: { attributeId: Id; valueIds: Id[]; sortOrder: number }[];
   skus: (Sku & { images: SkuImage[] })[];
   skuDefaults?: {
-    retailPrice: number;
-    currencyCode: string;
     weightKg?: number;
   };
 }

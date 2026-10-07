@@ -138,21 +138,25 @@ function updateCustom(attribute: Attribute, value: string) {
 <style scoped>
 .parameter-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0 20px;
 }
+
 .parameter-grid :deep(.el-form-item) {
   min-width: 0;
 }
+
 .parameter-grid :deep(.el-form-item__label) {
   height: auto;
   line-height: 22px;
   overflow-wrap: anywhere;
 }
+
 .parameter-grid :deep(.el-form-item__content) {
   min-width: 0;
 }
-@media (max-width: 640px) {
+
+@media (width <= 640px) {
   .parameter-grid {
     grid-template-columns: minmax(0, 1fr);
   }

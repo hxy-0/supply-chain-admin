@@ -19,6 +19,8 @@
 
 ## 公共组件
 
+订单管理提供查询、详情及后台编辑、取消；仅未实提的待提货订单可代改或取消。司机小程序提供实际提货、运单装车、整车直发、拼车、发车和到货清点。运行前需升级后端及 `trip_sheet.transport_mode` 字段。
+
 - `components/Tms/BusinessDialog.vue`：统一弹窗标题、关闭行为、保存状态、只读模式与页脚插槽。
 - `components/Tms/BusinessDrawer.vue`：统一详情抽屉、加载状态与页脚插槽。
 - `components/Tms/StatusTag.vue`：场景与排队号状态。

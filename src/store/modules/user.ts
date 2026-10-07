@@ -15,6 +15,7 @@ import {
 } from "@/api/user";
 import { useMultiTagsStoreHook } from "./multiTags";
 import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
+import { isRestorablePath } from "@/router/sessionRoute";
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
@@ -93,7 +94,11 @@ export const useUserStore = defineStore("pure-user", {
       });
     },
     /** 前端登出（不调用接口） */
-    logOut() {
+    logOut(preserveRedirect = false) {
+      const currentPath = router.currentRoute.value.fullPath;
+      const redirect = isRestorablePath(currentPath)
+        ? currentPath
+        : router.currentRoute.value.query.redirect;
       const refreshToken =
         storageLocal().getItem<DataInfo<number>>(userKey)?.refreshToken;
       if (refreshToken)
@@ -109,7 +114,11 @@ export const useUserStore = defineStore("pure-user", {
       removeToken();
       useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
       resetRouter();
-      router.push("/login");
+      router.replace({
+        path: "/login",
+        query:
+          preserveRedirect && isRestorablePath(redirect) ? { redirect } : {}
+      });
     },
     /** 刷新`token` */
     async handRefreshToken(data) {

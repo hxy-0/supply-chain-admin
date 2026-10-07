@@ -272,7 +272,7 @@ export interface QueueTicketLog {
   fromStatus?: number;
   toStatus?: number;
   resourceId?: string;
-  operator?: string;
+  createUser?: string;
   detail?: string;
   eventTime?: number;
   createTime?: number;
@@ -517,8 +517,4 @@ export const mockWechatApi = {
 
 // ==================== 通用 ====================
 
-/** 后端时间戳为毫秒，空值返回 '-' */
-export function formatTime(ms?: number | null): string {
-  if (!ms) return "-";
-  return new Date(ms).toLocaleString("zh-CN", { hour12: false });
-}
+export { formatDateTime as formatTime } from "@/utils/date";

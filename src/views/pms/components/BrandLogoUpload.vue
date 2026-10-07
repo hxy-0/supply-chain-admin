@@ -7,6 +7,10 @@ import {
   type UploadUserFile
 } from "element-plus";
 import { uploadProductImage } from "@/api/pms";
+import ZoomIn from "~icons/ep/zoom-in";
+import Refresh from "~icons/ep/refresh";
+import Delete from "~icons/ep/delete";
+import Plus from "~icons/ep/plus";
 
 const model = defineModel<string>();
 const props = defineProps<{ disabled?: boolean }>();
@@ -101,7 +105,7 @@ async function rasterizeSvg(file: File): Promise<File> {
   }
 }
 async function upload(file: File) {
-  if (!validate(file)) return;
+  if (props.disabled || pending.value || !validate(file)) return;
   pending.value = true;
   emit("uploading", true);
   try {
@@ -111,14 +115,17 @@ async function upload(file: File) {
     model.value = url;
     fileList.value = [{ name: "品牌 Logo", url, status: "success" }];
   } catch (error) {
+    fileList.value = model.value
+      ? [{ name: "品牌 Logo", url: model.value, status: "success" }]
+      : [];
     ElMessage.error(error instanceof Error ? error.message : "图片上传失败");
   } finally {
     pending.value = false;
     emit("uploading", false);
   }
 }
-function onPreview(file: UploadUserFile) {
-  previewUrl.value = file.url || "";
+function onPreview() {
+  previewUrl.value = model.value || "";
   previewVisible.value = true;
 }
 async function onUpload(options: UploadRequestOptions) {
@@ -130,7 +137,9 @@ const onExceed: UploadProps["onExceed"] = files => {
   if (file) void upload(file);
 };
 function onRemove() {
+  if (props.disabled || pending.value) return;
   model.value = "";
+  fileList.value = [];
 }
 // 粘贴上传：剪贴板里有图片时直接覆盖当前 Logo。
 function onPaste(event: ClipboardEvent) {
@@ -147,20 +156,54 @@ onBeforeUnmount(() => document.removeEventListener("paste", onPaste));
 </script>
 <template>
   <div>
-    <p class="logo-tip">上传图片</p>
     <el-upload
       v-model:file-list="fileList"
+      v-loading="pending"
       list-type="picture-card"
+      :show-file-list="false"
       accept="image/jpeg,image/png,image/gif,image/svg+xml"
       :limit="1"
       :disabled="disabled || pending"
       :http-request="onUpload"
       :before-upload="validate"
-      :on-preview="onPreview"
-      :on-remove="onRemove"
       :on-exceed="onExceed"
     >
-      <span class="upload-plus">+</span>
+      <template v-if="model">
+        <img :src="model" alt="品牌 Logo" class="logo-image" />
+        <span class="logo-actions">
+          <button
+            type="button"
+            class="logo-action"
+            title="预览"
+            aria-label="预览 Logo"
+            @click.stop="onPreview"
+            @keydown.stop
+          >
+            <el-icon><ZoomIn /></el-icon>
+          </button>
+          <button
+            type="button"
+            class="logo-action"
+            title="替换"
+            aria-label="替换 Logo"
+            :disabled="disabled || pending"
+          >
+            <el-icon><Refresh /></el-icon>
+          </button>
+          <button
+            type="button"
+            class="logo-action"
+            title="删除"
+            aria-label="删除 Logo"
+            :disabled="disabled || pending"
+            @click.stop="onRemove"
+            @keydown.stop
+          >
+            <el-icon><Delete /></el-icon>
+          </button>
+        </span>
+      </template>
+      <el-icon v-else class="upload-plus"><Plus /></el-icon>
     </el-upload>
     <el-dialog
       v-model="previewVisible"
@@ -172,23 +215,69 @@ onBeforeUnmount(() => document.removeEventListener("paste", onPaste));
   </div>
 </template>
 <style scoped>
-.logo-tip {
-  margin: 0 0 12px;
-  color: var(--el-text-color-secondary);
-}
 .upload-plus {
   font-size: 28px;
   color: var(--el-text-color-secondary);
 }
-:deep(.el-upload--picture-card),
-:deep(.el-upload-list--picture-card .el-upload-list__item) {
-  width: 80px;
-  height: 80px;
+
+:deep(.el-upload--picture-card) {
+  position: relative;
+  width: 178px;
+  height: 178px;
+  overflow: hidden;
+  background: var(--el-bg-color);
 }
+
 /* 长方形 Logo 在方形卡片内完整显示，不裁剪不拉伸 */
-:deep(.el-upload-list__item-thumbnail) {
+.logo-image {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
+
+.logo-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 50%);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+:deep(.el-upload--picture-card:hover) .logo-actions,
+:deep(.el-upload--picture-card:focus-within) .logo-actions {
+  opacity: 1;
+}
+
+.logo-action {
+  display: inline-flex;
+  padding: 0;
+  font-size: 18px;
+  color: #fff;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.logo-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.logo-action:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .logo-actions {
+    opacity: 1;
+  }
+}
+
 .preview-image {
   display: block;
   width: 100%;

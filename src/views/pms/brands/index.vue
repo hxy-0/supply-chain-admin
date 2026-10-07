@@ -9,6 +9,7 @@ import {
 import { pmsRequest, type Brand } from "@/api/pms";
 import type { PageResult } from "@/api/tms";
 import { usePmsPage } from "../composables/usePmsPage";
+import { formatDateTime } from "@/utils/date";
 import BrandLogoUpload from "../components/BrandLogoUpload.vue";
 defineOptions({ name: "PmsBrands" });
 type BrandForm = Omit<Brand, "brandId" | "isEnable"> & {
@@ -54,17 +55,6 @@ const rules: FormRules = {
 };
 function isHttpUrl(url?: string) {
   return /^https?:\/\//i.test(url ?? "");
-}
-function formatDate(value?: number) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 function search() {
   query.pageNum = 1;
@@ -175,17 +165,20 @@ onMounted(load);
         <el-table-column type="index" width="55" align="center" label="序号" />
         <el-table-column
           prop="name"
+          align="center"
           label="品牌名称"
           min-width="100"
           show-overflow-tooltip
         /><el-table-column
           prop="englishName"
+          align="center"
           label="英文名称"
           min-width="100"
           show-overflow-tooltip
         />
         <el-table-column
           prop="websiteUrl"
+          align="center"
           label="官网"
           min-width="160"
           show-overflow-tooltip
@@ -222,6 +215,7 @@ onMounted(load);
         >
         <el-table-column
           prop="creatorName"
+          align="center"
           label="创建人"
           min-width="130"
           show-overflow-tooltip
@@ -229,13 +223,14 @@ onMounted(load);
             row.creatorName || "-"
           }}</template></el-table-column
         >
-        <el-table-column label="创建时间" min-width="180"
+        <el-table-column label="创建时间" min-width="180" align="center"
           ><template #default="{ row }">{{
-            formatDate(row.createTime)
+            formatDateTime(row.createTime)
           }}</template></el-table-column
         >
         <el-table-column
           prop="updaterName"
+          align="center"
           label="更新人"
           min-width="130"
           show-overflow-tooltip
@@ -243,12 +238,12 @@ onMounted(load);
             row.updaterName || "-"
           }}</template></el-table-column
         >
-        <el-table-column label="更新时间" min-width="180"
+        <el-table-column label="更新时间" min-width="160" align="center"
           ><template #default="{ row }">{{
-            formatDate(row.updateTime)
+            formatDateTime(row.updateTime)
           }}</template></el-table-column
         >
-        <el-table-column label="操作" min-width="150" align="right"
+        <el-table-column label="操作" min-width="150" align="center"
           ><template #default="{ row }"
             ><el-button link type="primary" @click="edit(row as Brand)"
               >编辑</el-button
@@ -360,9 +355,9 @@ onMounted(load);
   /* 块级显示：120px 行内块会比 .cell 内容区宽 4px，触发 .cell 的
      text-overflow: ellipsis，在右下角画出"··"杂点 */
   display: block;
-  margin: 0 auto;
   width: 120px;
   height: 56px;
+  margin: 0 auto;
   border-radius: 4px;
 }
 </style>

@@ -56,7 +56,7 @@ class PureHttp {
 
   private static expireSession() {
     if (!getToken()) return;
-    useUserStoreHook().logOut();
+    useUserStoreHook().logOut(true);
     message(transformI18n($t("login.pureLoginExpired")), { type: "warning" });
   }
 
@@ -72,18 +72,39 @@ class PureHttp {
       PureHttp.expireSession();
       return Promise.reject(new Error("登录已失效，请重新登录"));
     }
-    PureHttp.refreshPromise = useUserStoreHook()
-      .handRefreshToken({ refreshToken: data.refreshToken })
-      .then(res => res.data.accessToken)
-      .catch(error => {
+    const refreshToken = data.refreshToken;
+    const refresh = async () => {
+      const current = getToken();
+      // 其他标签页可能已轮换一次性 refresh token，优先使用它写回的有效令牌。
+      if (
+        current?.refreshToken !== refreshToken &&
+        Number(current?.expires) > Date.now()
+      )
+        return current.accessToken;
+      try {
+        const result = await useUserStoreHook().handRefreshToken({
+          refreshToken
+        });
+        return result.data.accessToken;
+      } catch (error) {
         const status = error.response?.status ?? error.code;
-        if (status === 401 || status === 403) PureHttp.expireSession();
+        if (
+          (status === 401 || status === 403) &&
+          getToken()?.refreshToken === refreshToken
+        )
+          PureHttp.expireSession();
         // 超时、断网及服务异常保留会话，让用户可以稍后重试。
         throw error;
-      })
-      .finally(() => {
-        PureHttp.refreshPromise = null;
-      });
+      }
+    };
+    // 多标签页共用 localStorage，也必须串行消费同一个刷新令牌。
+    PureHttp.refreshPromise = (
+      typeof navigator !== "undefined" && navigator.locks
+        ? navigator.locks.request("supply-chain-auth-refresh", refresh)
+        : refresh()
+    ).finally(() => {
+      PureHttp.refreshPromise = null;
+    });
     return PureHttp.refreshPromise;
   }
 
@@ -165,7 +186,6 @@ class PureHttp {
           !$error.isCancelRequest
         ) {
           if (config.authRetried) {
-            PureHttp.expireSession();
             throw error;
           }
           const current = getToken();
