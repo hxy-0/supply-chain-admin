@@ -11,6 +11,7 @@ import type {
 } from "./type";
 
 const dialogStore = ref<Array<DialogOptions>>([]);
+const closingDialogs = new WeakSet<DialogOptions>();
 
 /** 打开弹框 */
 const addDialog = (options: DialogOptions) => {
@@ -27,12 +28,16 @@ const addDialog = (options: DialogOptions) => {
 
 /** 关闭弹框 */
 const closeDialog = (options: DialogOptions, index: number, args?: any) => {
-  dialogStore.value[index].visible = false;
+  const dialog = dialogStore.value[dialogStore.value.indexOf(options)];
+  if (!dialog || closingDialogs.has(dialog)) return;
+  closingDialogs.add(dialog);
+  dialog.visible = false;
   options.closeCallBack && options.closeCallBack({ options, index, args });
 
   const closeDelay = options?.closeDelay ?? 200;
   useTimeoutFn(() => {
-    dialogStore.value.splice(index, 1);
+    const currentIndex = dialogStore.value.indexOf(dialog);
+    if (currentIndex !== -1) dialogStore.value.splice(currentIndex, 1);
   }, closeDelay);
 };
 

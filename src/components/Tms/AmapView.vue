@@ -9,16 +9,23 @@ interface MapPoint {
   vehicleId?: string;
   speedKph?: number;
   gpsTime?: number;
+  nodeId?: string;
+  label?: string;
 }
 
 const props = defineProps<{
   points: MapPoint[];
   track?: boolean;
+  route?: boolean;
+  activePointId?: string;
   selectable?: boolean;
   activeIndex?: number;
   height?: string;
 }>();
-const emit = defineEmits<{ select: [location: Record<string, unknown>] }>();
+const emit = defineEmits<{
+  select: [location: Record<string, unknown>];
+  pointClick: [point: MapPoint];
+}>();
 const container = ref<HTMLElement>(),
   error = ref("");
 let map: any,
@@ -36,16 +43,16 @@ function render() {
   const points = props.points.filter(
     p => Number.isFinite(p.longitude) && Number.isFinite(p.latitude)
   );
-  if (props.track) {
+  if (props.track || props.route) {
     if (points.length > 1)
       overlays.push(
         new AMap.Polyline({
           path: points.map(p => [p.longitude, p.latitude]),
-          strokeColor: "#409eff",
+          strokeColor: "#5546e8",
           strokeWeight: 5
         })
       );
-    if (points.length) {
+    if (points.length && props.track) {
       marker = new AMap.Marker({
         position: [points[0].longitude, points[0].latitude],
         title: points[0].plateNumber || "轨迹车辆"
@@ -61,18 +68,22 @@ function render() {
         })
       );
     }
-  } else {
+  }
+  if (!props.track) {
     for (const p of points) {
       const item = new AMap.Marker({
         position: [p.longitude, p.latitude],
-        title: p.plateNumber || p.vehicleId || "位置"
+        title: p.label || p.plateNumber || p.vehicleId || "位置"
       });
       item.on("click", () => {
+        emit("pointClick", p);
         const info = new AMap.InfoWindow({
           content: document.createElement("div")
         });
         const content = document.createElement("div");
-        content.textContent = `${p.plateNumber || p.vehicleId || "位置"} · ${p.speedKph ?? 0} km/h`;
+        content.textContent =
+          p.label ||
+          `${p.plateNumber || p.vehicleId || "位置"} · ${p.speedKph ?? 0} km/h`;
         info.setContent(content);
         info.open(map, [p.longitude, p.latitude]);
       });
@@ -89,7 +100,16 @@ function move() {
   if (marker && p) marker.setPosition([p.longitude, p.latitude]);
 }
 
-watch(() => [props.points, props.track], render, { deep: true });
+watch(() => [props.points, props.track, props.route], render, { deep: true });
+watch(
+  () => props.activePointId,
+  id => {
+    const point = props.points.find(
+      point => (point.nodeId || point.vehicleId) === id
+    );
+    if (map && point) map.panTo([point.longitude, point.latitude]);
+  }
+);
 watch(() => props.activeIndex, move);
 onMounted(async () => {
   try {

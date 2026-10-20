@@ -82,9 +82,9 @@ onMounted(() => {
   useResizeObserver(contentRef, async () => {
     await nextTick();
     delay(60).then(() => {
-      treeHeight.value = parseFloat(
-        subBefore(tableRef.value.getTableDoms().tableWrapper.style.height, "px")
-      );
+      const tableWrapper = tableRef.value?.getTableDoms()?.tableWrapper;
+      if (!tableWrapper) return;
+      treeHeight.value = parseFloat(subBefore(tableWrapper.style.height, "px"));
     });
   });
 });

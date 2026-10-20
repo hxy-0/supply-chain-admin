@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type { FormInstance } from "element-plus";
 import { ZxcvbnFactory } from "@zxcvbn-ts/core";
 
+defineEmits<{ close: [] }>();
 const props = defineProps<{ model: { newPwd: string } }>();
 const formRef = ref<FormInstance>();
 const passwordModel = props.model;

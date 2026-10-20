@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WorkspaceHeader from "@/components/Tms/WorkspaceHeader.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { message } from "@/utils/message";
@@ -12,6 +13,7 @@ import {
 } from "@/api/tms";
 import AmapView from "@/components/Tms/AmapView.vue";
 import BusinessDrawer from "@/components/Tms/BusinessDrawer.vue";
+import FleetOverview from "./components/FleetOverview.vue";
 defineOptions({ name: "TmsVehicleMonitoring" });
 const route = useRoute();
 const isTrack = computed(() => route.path.endsWith("/track"));
@@ -21,6 +23,7 @@ const loading = ref(false),
   vehicles = ref<Vehicle[]>([]),
   vehicleId = ref(""),
   selectedId = ref("");
+const vehiclesLoading = ref(false);
 const range = ref<[Date, Date]>([
   new Date(Date.now() - 24 * 3600_000),
   new Date()
@@ -30,11 +33,10 @@ const result = ref<VehicleTrackResult>(),
   playing = ref(false),
   index = ref(0),
   speed = ref(1);
-const selected = computed(() =>
-  rows.value.find(r => r.vehicleId === selectedId.value)
-);
 const mapRows = computed(() =>
-  !isTrack.value && selected.value ? [selected.value] : rows.value
+  !isTrack.value && selectedId.value
+    ? rows.value.filter(row => row.vehicleId === selectedId.value)
+    : rows.value
 );
 let requestId = 0;
 function report(error: unknown) {
@@ -47,7 +49,10 @@ async function online() {
     const list = await vehicleTrackApi.online();
     if (version !== requestId) return;
     rows.value = list;
-    if (!list.some(r => r.vehicleId === selectedId.value))
+    if (
+      !list.some(r => r.vehicleId === selectedId.value) &&
+      !vehicles.value.some(vehicle => vehicle.id === selectedId.value)
+    )
       selectedId.value = "";
   } finally {
     if (version === requestId) loading.value = false;
@@ -76,15 +81,20 @@ async function track() {
   }
 }
 async function loadVehicles() {
-  const list: Vehicle[] = [];
-  let pageNum = 1;
-  while (true) {
-    const page = await vehicleApi.page({ pageNum, pageSize: 100 });
-    list.push(...page.records);
-    if (!page.records.length || list.length >= page.total) break;
-    pageNum++;
+  vehiclesLoading.value = true;
+  try {
+    const list: Vehicle[] = [];
+    let pageNum = 1;
+    while (true) {
+      const page = await vehicleApi.page({ pageNum, pageSize: 100 });
+      list.push(...page.records);
+      if (!page.records.length || list.length >= page.total) break;
+      pageNum++;
+    }
+    vehicles.value = list;
+  } finally {
+    vehiclesLoading.value = false;
   }
-  vehicles.value = list;
 }
 watch(isTrack, () => {
   ++requestId;
@@ -119,7 +129,21 @@ function play() {
 }
 </script>
 <template>
-  <div class="monitoring-page">
+  <div
+    class="monitoring-page tms-workspace"
+    :class="{ 'fleet-dashboard': !isTrack }"
+  >
+    <WorkspaceHeader
+      :title="isTrack ? '车辆轨迹' : '车队运行总览'"
+      description="从车辆列表到地图位置，查看实际定位与运输轨迹。"
+    />
+    <FleetOverview
+      v-if="!isTrack"
+      v-model="selectedId"
+      :vehicles="vehicles"
+      :locations="rows"
+      :loading="loading || vehiclesLoading"
+    />
     <el-card shadow="never" class="monitoring-filters"
       ><div class="flex flex-wrap gap-3">
         <template v-if="isTrack"
@@ -141,6 +165,7 @@ function play() {
               style="width: 100%"
               start-placeholder="开始时间"
               end-placeholder="结束时间"
+              format="YYYY-MM-DD HH:mm:ss"
             />
           </div>
           <el-button
@@ -155,13 +180,13 @@ function play() {
             v-model="selectedId"
             filterable
             clearable
-            placeholder="定位在线车辆"
+            placeholder="选择定位车辆"
             style="width: 240px"
             ><el-option
-              v-for="v in rows"
-              :key="v.vehicleId"
-              :value="v.vehicleId"
-              :label="v.plateNumber || v.vehicleId" /></el-select
+              v-for="v in vehicles"
+              :key="v.id"
+              :value="v.id"
+              :label="`${v.plateNumber}${rows.some(row => row.vehicleId === v.id) ? '' : '（暂无在线定位）'}`" /></el-select
           ><el-button
             type="primary"
             :loading="loading"
@@ -176,6 +201,13 @@ function play() {
     >
     <div v-loading="loading" class="monitoring-map">
       <el-alert
+        v-if="!isTrack && selectedId && !mapRows.length && !loading"
+        class="sampling-notice"
+        title="该车辆暂无在线定位"
+        type="info"
+        :closable="false"
+      />
+      <el-alert
         v-if="result?.sampled"
         class="sampling-notice"
         type="info"
@@ -188,6 +220,12 @@ function play() {
         :points="mapRows"
         :track="isTrack"
         :active-index="index"
+        :active-point-id="selectedId"
+        @point-click="
+          point => {
+            if (!isTrack) selectedId = point.vehicleId;
+          }
+        "
       />
       <div v-if="isTrack && rows.length" class="track-player">
         <div class="flex gap-3">
@@ -259,6 +297,18 @@ function play() {
 
 .monitoring-filters {
   flex-shrink: 0;
+}
+
+.fleet-dashboard {
+  height: auto;
+}
+
+.fleet-dashboard .monitoring-map {
+  flex: none;
+  height: 440px;
+  overflow: hidden;
+  border: 1px solid var(--tms-line);
+  border-radius: 18px;
 }
 
 .monitoring-map {

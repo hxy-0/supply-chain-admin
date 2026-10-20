@@ -22,6 +22,16 @@ export default {
         title: $t("menus.pureHome"),
         showLink: VITE_HIDE_HOME === "true" ? false : true
       }
+    },
+    {
+      path: "/tms/pickup/detail/:id",
+      name: "TmsPickupDetail",
+      component: () => import("@/views/tms/pickup/detail.vue"),
+      meta: {
+        title: "提货任务详情",
+        showLink: false,
+        activePath: "/tms/pickup"
+      }
     }
   ]
 } satisfies RouteConfigsTable;

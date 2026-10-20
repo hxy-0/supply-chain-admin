@@ -1,7 +1,17 @@
 <script setup lang="ts">
+import BusinessDrawer from "@/components/Tms/BusinessDrawer.vue";
+import WorkspaceHeader from "@/components/Tms/WorkspaceHeader.vue";
+import VehicleWorkbench from "./components/VehicleWorkbench.vue";
+import VehicleTransport from "./components/VehicleTransport.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
-import { carrierApi, driverApi, logisticNodeApi, vehicleApi } from "@/api/tms";
+import {
+  carrierApi,
+  driverApi,
+  logisticNodeApi,
+  vehicleApi,
+  type Vehicle
+} from "@/api/tms";
 import { message } from "@/utils/message";
 import FleetEditDialog from "./components/FleetEditDialog.vue";
 import DriverBindDialog from "./components/DriverBindDialog.vue";
@@ -38,6 +48,22 @@ const total = ref(0),
   loading = ref(false),
   editOpen = ref(false),
   bindOpen = ref(false);
+const vehicleDetailOpen = ref(false);
+const selectedVehicle = ref<Vehicle>();
+async function vehicleDetail(row: Vehicle) {
+  try {
+    selectedVehicle.value = await vehicleApi.get(row.id);
+    vehicleDetailOpen.value = true;
+  } catch (error) {
+    report(error);
+  }
+}
+async function fleetSaved() {
+  await load();
+  if (vehicleDetailOpen.value && selectedVehicle.value) {
+    selectedVehicle.value = await vehicleApi.get(selectedVehicle.value.id);
+  }
+}
 const sensitiveOpen = ref(false);
 const sensitiveDriver = ref<Record<string, any>>();
 const editing = ref<Record<string, any>>(),
@@ -171,6 +197,8 @@ async function toggle(
   }
 }
 watch(kind, () => {
+  vehicleDetailOpen.value = false;
+  selectedVehicle.value = undefined;
   editOpen.value = false;
   bindOpen.value = false;
   sensitiveOpen.value = false;
@@ -185,7 +213,11 @@ onMounted(() => {
 });
 </script>
 <template>
-  <div>
+  <div class="tms-workspace">
+    <WorkspaceHeader
+      :title="`${def.title}管理`"
+      description="维护车队基础档案，统一查看人员、运力和服务节点。"
+    />
     <el-card shadow="never" class="mb-4"
       ><el-form
         inline
@@ -235,8 +267,8 @@ onMounted(() => {
         >
       </el-form></el-card
     >
-    <el-card shadow="never"
-      ><el-table v-loading="loading" :data="rows" row-key="id">
+    <el-card shadow="never">
+      <el-table v-loading="loading" :data="rows" row-key="id">
         <el-table-column
           v-for="field in tableFields"
           :key="field.key"
@@ -348,9 +380,17 @@ onMounted(() => {
               ? hasPerms('tms:driver:sensitive:view')
                 ? 260
                 : 190
-              : 140
+              : kind === 'vehicles'
+                ? 200
+                : 140
           "
           ><template #default="s"
+            ><el-button
+              v-if="kind === 'vehicles'"
+              link
+              type="primary"
+              @click="vehicleDetail(s.row as Vehicle)"
+              >详情</el-button
             ><el-button link type="primary" @click="edit(s.row)">编辑</el-button
             ><template v-if="kind === 'drivers'"
               ><el-button
@@ -388,12 +428,32 @@ onMounted(() => {
         layout="total, sizes, prev, pager, next"
         @change="load().catch(report)"
     /></el-card>
+    <BusinessDrawer v-model="vehicleDetailOpen" title="车辆详情" size="1050px">
+      <el-tabs v-if="selectedVehicle">
+        <el-tab-pane label="车辆档案">
+          <VehicleWorkbench
+            v-if="selectedVehicle"
+            :vehicles="[selectedVehicle]"
+            :carriers="carriers"
+            :loading="false"
+            detail-only
+            @edit="edit"
+          />
+        </el-tab-pane>
+        <el-tab-pane
+          v-if="hasPerms('tms:dispatch:view')"
+          label="运输与装载"
+          lazy
+          ><VehicleTransport :vehicle-id="selectedVehicle.id"
+        /></el-tab-pane>
+      </el-tabs>
+    </BusinessDrawer>
     <FleetEditDialog
       v-model="editOpen"
       :kind="kind"
       :editing="editing"
       :carriers="carriers"
-      @saved="load().catch(report)"
+      @saved="fleetSaved().catch(report)"
     />
     <DriverBindDialog
       v-model="bindOpen"

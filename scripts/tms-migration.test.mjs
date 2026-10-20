@@ -12,8 +12,9 @@ import {
 } from "../src/views/tms/fleet/definitions.ts";
 
 test("fleet enum values accept backend names and numeric codes without treating empty values as zero", () => {
-  for (const value of [0, "0", "ENABLED"])
-    assert.equal(enumCode(value, driverStatuses), 0);
+  for (const value of [1, "1", "ENABLED"])
+    assert.equal(enumCode(value, driverStatuses), 1);
+  assert.equal(enumCode("DISABLED", driverStatuses), 0);
   for (const value of [null, undefined, "", "UNKNOWN", -1]) {
     assert.equal(enumCode(value, driverStatuses), undefined);
     assert.equal(optionLabel(value, driverStatuses), "-");
@@ -48,10 +49,12 @@ globalThis.__tmsTransport = {
 };
 const source = (
   await readFile(new URL("../src/api/tms.ts", import.meta.url), "utf8")
-).replace(
-  'import { http } from "@/utils/http";',
-  "const http = globalThis.__tmsTransport;"
-);
+)
+  .replace(
+    'import { http } from "@/utils/http";',
+    "const http = globalThis.__tmsTransport;"
+  )
+  .replace('export { formatDateTime as formatTime } from "@/utils/date";', "");
 const js = ts.transpileModule(source, {
   compilerOptions: {
     module: ts.ModuleKind.ESNext,
@@ -85,10 +88,13 @@ test("queue API preserves status filters and normalizes enum names returned by t
   );
   assert.equal(calls.at(-1).url, "/api/queue/ticket/page");
   assert.deepEqual(calls.at(-1).data.statuses, [20, 30]);
-  response = { code: 0, data: { records: [{ status: "DISABLED" }], total: 1 } };
+  response = {
+    code: 0,
+    data: { records: [{ isEnable: "DISABLED" }], total: 1 }
+  };
   assert.equal(
     (await api.queueConfigApi.page({ pageNum: 1, pageSize: 10 })).records[0]
-      .status,
+      .isEnable,
     0
   );
 });

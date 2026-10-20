@@ -31,32 +31,25 @@ export async function completeLogin(data: UserResult["data"]) {
   setToken(data);
   try {
     await initRouter();
-    const destination = loginDestination(
-      router.currentRoute.value.query.redirect,
-      storageLocal().getItem(lastPageKey(data.username || ""))
-    );
-    await router.push(
-      router.resolve(destination).name &&
-        router.resolve(destination).name !== "PageNotFound"
-        ? destination
-        : getTopMenu(true)?.path || "/welcome"
-    );
-    message(transformI18n("login.pureLoginSuccess"), { type: "success" });
   } catch (error) {
     if (error.response?.status === 401 || error.response?.status === 403) {
       removeToken();
       throw error;
     }
-    // 登录和菜单加载是两个独立结果。认证已经成功时，不能因为某一条后台菜单
-    // 配置错误就删除令牌并把用户留在登录页；至少允许进入静态首页继续操作。
-    console.error("动态菜单加载失败", error);
-    await router.replace({ path: "/welcome", query: { login: Date.now() } });
-    message(
-      `登录成功，但动态菜单加载失败：${error.message || "菜单配置异常"}`,
-      {
-        type: "warning",
-        duration: 6000
-      }
-    );
+    throw new Error(`菜单加载失败：${error.message || "请稍后重试"}`);
   }
+  const destination = loginDestination(
+    router.currentRoute.value.query.redirect,
+    storageLocal().getItem(lastPageKey(data.username || ""))
+  );
+  const navigationFailure = await router.push(
+    router.resolve(destination).name &&
+      router.resolve(destination).name !== "PageNotFound"
+      ? destination
+      : getTopMenu(true)?.path || "/welcome"
+  );
+  if (navigationFailure || router.currentRoute.value.path === "/login") {
+    throw new Error("登录已验证，但页面跳转未完成，请重试");
+  }
+  message(transformI18n("login.pureLoginSuccess"), { type: "success" });
 }

@@ -3,6 +3,15 @@ const Layout = () => import("@/layout/index.vue");
 
 export default [
   {
+    path: "/:pathMatch(.*)*",
+    name: "PageNotFound",
+    component: () => import("@/views/error/404.vue"),
+    meta: {
+      title: $t("menus.purePageNotFound"),
+      showLink: false
+    }
+  },
+  {
     path: "/login",
     name: "Login",
     component: () => import("@/views/login/index.vue"),

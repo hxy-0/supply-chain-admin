@@ -19,22 +19,46 @@ interface Option {
   code: string;
   name: string;
 }
+interface CountryOption extends Option {
+  currencyCode: string;
+}
 const visible = defineModel<boolean>({ required: true });
 const props = defineProps<{ targets: Sku[] }>();
 const emit = defineEmits<{ saved: [] }>();
 const prices = ref<Price[]>([]);
 const snapshots = ref<Snapshot[]>([]);
-const options = ref<{ countries: Option[]; currencies: Option[] }>({
+const options = ref<{ countries: CountryOption[]; currencies: Option[] }>({
   countries: [],
   currencies: []
 });
 const loading = ref(false);
 const saving = ref(false);
 const failure = ref("");
+function availableCountries(index = -1) {
+  const used = new Set(
+    prices.value
+      .filter((_, priceIndex) => priceIndex !== index)
+      .map(price => price.countryCode)
+  );
+  const currentCountry = prices.value[index]?.countryCode;
+  return options.value.countries.filter(
+    country => country.code === currentCountry || !used.has(country.code)
+  );
+}
+function changeCountry(index: number) {
+  const price = prices.value[index];
+  price.currencyCode =
+    options.value.countries.find(country => country.code === price.countryCode)
+      ?.currencyCode ?? "";
+}
 function add() {
+  const available = availableCountries();
+  const country =
+    available.find(option => option.code === "CN") ?? available[0];
+  if (!country) return;
   prices.value.push({
-    countryCode: "CN",
-    currencyCode: "CNY",
+    countryCode: country.code,
+    currencyCode: country.currencyCode,
     retailPrice: 0,
     taxIncluded: true,
     isEnable: true
@@ -154,14 +178,15 @@ async function save() {
       />
       <el-table :data="prices">
         <el-table-column label="销售国家/地区" min-width="190"
-          ><template #default="{ row }">
+          ><template #default="{ row, $index }">
             <el-select
               v-model="row.countryCode"
               filterable
               :disabled="saving || loading"
+              @change="changeCountry($index)"
             >
               <el-option
-                v-for="option in options.countries"
+                v-for="option in availableCountries($index)"
                 :key="option.code"
                 :value="option.code"
                 :label="`${option.name} (${option.code})`"
@@ -218,7 +243,13 @@ async function save() {
         >
       </el-table>
       <el-button
-        :disabled="saving || loading || !!failure || prices.length >= 200"
+        :disabled="
+          saving ||
+          loading ||
+          !!failure ||
+          prices.length >= 200 ||
+          !availableCountries().length
+        "
         @click="add"
         >添加地区价格</el-button
       >

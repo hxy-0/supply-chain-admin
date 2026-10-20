@@ -117,19 +117,23 @@ const preview: UploadProps["onPreview"] = file => {
   margin: 0 0 12px;
   color: var(--el-text-color-secondary);
 }
+
 .upload-plus {
   font-size: 28px;
   color: var(--el-text-color-secondary);
 }
+
 .manage-button {
   margin-top: 12px;
 }
+
 .preview-image {
   display: block;
   width: 100%;
   max-height: 70vh;
   object-fit: contain;
 }
+
 :deep(.el-upload--picture-card),
 :deep(.el-upload-list--picture-card .el-upload-list__item) {
   width: 104px;

@@ -95,9 +95,7 @@ export function resetRouter() {
   for (const route of initConstantRoutes.concat(...(remainingRouter as any))) {
     router.addRoute(route);
   }
-  router.options.routes = formatTwoStageRoutes(
-    formatFlatteningRoutes(buildHierarchyTree(ascending(routes.flat(Infinity))))
-  );
+  router.options.routes = cloneDeep(initConstantRoutes);
   usePermissionStoreHook().clearAllCachePage();
   resetLoadedPaths();
 }
@@ -156,7 +154,8 @@ router.beforeEach(async (to: ToRouteType, _from) => {
         NProgress.done();
         return false;
       }
-      if (!to.name && router.resolve(to.fullPath).name) return to.fullPath;
+      const resolved = router.resolve(to.fullPath);
+      if (resolved.name && resolved.name !== to.name) return to.fullPath;
     }
     if (to.path === "/welcome" && to.redirectedFrom?.path === "/") {
       const lastPage = storageLocal().getItem<string>(

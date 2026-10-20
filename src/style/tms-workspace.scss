@@ -1,0 +1,238 @@
+/* 米白到蓝灰的渐变画布搭配白色面板和蓝色交互。 */
+:root {
+  --tms-canvas: linear-gradient(135deg, #f8f6ed 0%, #f3f3f0 48%, #dfe5ef 100%);
+  --tms-panel: #fff;
+  --tms-ink: #24231e;
+  --tms-muted: #777368;
+  --tms-line: #eeece4;
+  --tms-soft: #f8f7f1;
+  --tms-accent: var(--el-color-primary);
+  --tms-accent-soft: #e8effb;
+  --tms-teal: #087f73;
+  --tms-amber: #a66a08;
+}
+
+html.dark {
+  --tms-canvas: var(--el-bg-color-page);
+  --tms-panel: var(--el-bg-color);
+  --tms-ink: var(--el-text-color-primary);
+  --tms-muted: var(--el-text-color-secondary);
+  --tms-line: var(--el-border-color);
+  --tms-soft: var(--el-fill-color-light);
+  --tms-accent: #a69bff;
+  --tms-accent-soft: #322b51;
+  --tms-teal: #66d4bf;
+  --tms-amber: #ffd17e;
+}
+
+.tms-workspace {
+  padding: 26px;
+  color: var(--tms-ink);
+  background: transparent;
+
+  .el-card,
+  .tms-panel {
+    padding: 22px;
+    background: var(--tms-panel);
+    border: 1px solid var(--tms-line);
+    border-radius: 18px;
+    box-shadow: 0 6px 28px rgb(40 49 96 / 3%);
+  }
+
+  .el-card {
+    padding: 0;
+  }
+
+  .el-card__header {
+    padding: 24px;
+    border-bottom: 1px solid var(--tms-line);
+  }
+
+  .el-card__body {
+    padding: 24px;
+  }
+
+  .el-table {
+    --el-table-header-bg-color: var(--tms-soft);
+    --el-table-border-color: var(--tms-line);
+    --el-table-row-hover-bg-color: var(--tms-soft);
+
+    border-radius: 12px;
+
+    th.el-table__cell {
+      height: 44px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--tms-muted);
+    }
+
+    td.el-table__cell {
+      height: 58px;
+    }
+  }
+
+  .el-button {
+    border-radius: 9px;
+  }
+
+  .el-pagination {
+    justify-content: flex-end;
+    margin-top: 22px;
+  }
+
+  .tms-section-title {
+    margin-bottom: 18px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+}
+
+.tms-page-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+
+  .eyebrow {
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--tms-accent);
+    letter-spacing: 2px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 27px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+
+  p {
+    margin: 9px 0 0;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--tms-muted);
+  }
+}
+
+.tms-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.tms-metric {
+  --metric-accent: var(--tms-accent);
+
+  position: relative;
+  padding: 22px;
+  overflow: hidden;
+  background: var(--tms-panel);
+  border: 1px solid var(--tms-line);
+  border-top: 3px solid var(--metric-accent);
+  border-radius: 16px;
+
+  &::after {
+    position: absolute;
+    top: -30px;
+    right: -30px;
+    width: 100px;
+    height: 100px;
+    pointer-events: none;
+    content: "";
+    background: var(--metric-accent);
+    border-radius: 50%;
+    opacity: 0.07;
+  }
+
+  &:nth-child(2) {
+    --metric-accent: var(--tms-amber);
+  }
+
+  &:nth-child(3) {
+    --metric-accent: #287ed8;
+  }
+
+  &:nth-child(4) {
+    --metric-accent: var(--tms-teal);
+  }
+
+  span {
+    font-size: 12px;
+    color: var(--tms-muted);
+  }
+
+  strong {
+    display: block;
+    margin-top: 18px;
+    font-size: 32px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--metric-accent);
+  }
+}
+
+.tms-status {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--tms-muted);
+  background: var(--tms-soft);
+  border-radius: 6px;
+}
+
+.tms-status:is(
+  [data-status="PENDING"],
+  [data-status="DRAFT"],
+  [data-status="RESERVED"]
+) {
+  color: var(--tms-amber);
+  background: color-mix(in srgb, var(--tms-amber) 10%, var(--tms-panel));
+}
+
+.tms-status:is(
+  [data-status="EXECUTING"],
+  [data-status="ASSIGNED"],
+  [data-status="IN_TRANSIT"],
+  [data-status="LOADED"],
+  [data-status="ISSUED"]
+) {
+  color: var(--tms-accent);
+  background: var(--tms-accent-soft);
+}
+
+.tms-status:is(
+  [data-status="COMPLETED"],
+  [data-status="FINISHED"],
+  [data-status="DELIVERED"],
+  [data-status="NORMAL"],
+  [data-status="0"]
+) {
+  color: var(--tms-teal);
+  background: color-mix(in srgb, var(--tms-teal) 10%, var(--tms-panel));
+}
+
+.tms-status[data-status="CANCELLED"] {
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+}
+
+@media (width <= 768px) {
+  .tms-workspace {
+    padding: 16px;
+  }
+
+  .tms-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tms-workspace * {
+    transition: none !important;
+  }
+}

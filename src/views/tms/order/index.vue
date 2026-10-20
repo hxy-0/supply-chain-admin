@@ -1,41 +1,51 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
-import { ElMessageBox, ElMessage } from "element-plus";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { hasPerms } from "@/utils/auth";
 import { formatDateTime } from "@/utils/date";
-import { statusLabels, formatWeight, formatVolume } from "./presentation";
-import { orderApi, type ExpressOrder } from "@/api/tmsOrder";
+import { orderApi, type TmsOrder, type OrderStatus } from "@/api/tmsOrder";
+import { statusLabels } from "./presentation";
 import OrderDialog from "./components/OrderDialog.vue";
-const readonly = ref(true);
-const editOpen = ref(false);
-const editOrder = ref<ExpressOrder>();
+import WorkspaceHeader from "@/components/Tms/WorkspaceHeader.vue";
+import GenerateTripDrawer from "./components/GenerateTripDrawer.vue";
+
 defineOptions({ name: "TmsOrder" });
 const filter = reactive({
   orderNo: "",
-  waybillNo: "",
-  senderPhone: "",
-  receiverPhone: "",
-  tempZone: undefined as number | undefined,
   senderName: "",
-  receiverName: "",
-  status: undefined as number | undefined,
+  receiverPhone: "",
+  statuses: [] as OrderStatus[],
   pageNum: 1,
   pageSize: 10
 });
-const createRange = ref<[number, number]>();
-let queryVersion = 0;
-let detailVersion = 0;
-const detailLoading = ref(false);
-const rows = ref<ExpressOrder[]>([]);
+const createRange = ref<[string, string]>();
+const rows = ref<TmsOrder[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const tempLabels: Record<number, string> = {
-  1: "常温",
-  2: "冷藏",
-  3: "水产",
-  4: "工业品"
-};
+const dialogOpen = ref(false);
+const readonly = ref(true);
+const selected = ref<TmsOrder>();
+const detailLoading = ref(false);
+const actionId = ref<string>();
+const tripOpen = ref(false);
+const checkedOrders = ref<TmsOrder[]>([]);
+const tripOrderIds = ref<string[]>([]);
+function selectable(row: TmsOrder) {
+  return row.status === "PENDING" || row.status === "EXECUTING";
+}
+function generateTrip() {
+  tripOrderIds.value = checkedOrders.value.map(row => row.orderId);
+  tripOpen.value = true;
+}
+async function tripSaved() {
+  await load();
+  if (selected.value && tripOrderIds.value.includes(selected.value.orderId))
+    await show(selected.value, true);
+}
+let queryVersion = 0;
+let detailVersion = 0;
 function error(reason: unknown) {
-  ElMessage.error(reason instanceof Error ? reason.message : "查询失败");
+  ElMessage.error(reason instanceof Error ? reason.message : "操作失败");
 }
 async function load() {
   const version = ++queryVersion;
@@ -51,6 +61,7 @@ async function load() {
         : undefined
     });
     if (version !== queryVersion) return;
+    checkedOrders.value = [];
     rows.value = page.records;
     total.value = page.total;
   } catch (reason) {
@@ -64,59 +75,109 @@ function search() {
   void load();
 }
 function reset() {
-  filter.orderNo = "";
-  filter.waybillNo = "";
-  filter.senderName = "";
-  filter.receiverName = "";
-  filter.senderPhone = "";
-  filter.receiverPhone = "";
-  filter.status = undefined;
-  filter.tempZone = undefined;
+  Object.assign(filter, {
+    orderNo: "",
+    senderName: "",
+    receiverPhone: "",
+    statuses: []
+  });
   createRange.value = undefined;
   search();
 }
-async function show(row: ExpressOrder, readOnly: boolean) {
+function create() {
+  ++detailVersion;
+  selected.value = undefined;
+  readonly.value = false;
+  dialogOpen.value = true;
+}
+async function show(row: TmsOrder, readOnly: boolean) {
   const version = ++detailVersion;
   detailLoading.value = true;
   try {
-    const result = await orderApi.detail(row.orderId);
+    const order = await orderApi.detail(row.orderId);
     if (version !== detailVersion) return;
-    editOrder.value = result;
+    if (!readOnly && !order.editable)
+      return ElMessage.warning("订单已实提或存在待执行任务，不能编辑");
+    selected.value = order;
     readonly.value = readOnly;
-    editOpen.value = true;
+    dialogOpen.value = true;
   } catch (reason) {
-    error(reason);
+    if (version === detailVersion) error(reason);
   } finally {
     if (version === detailVersion) detailLoading.value = false;
   }
 }
-async function cancel(row: ExpressOrder) {
+async function action(row: TmsOrder, kind: "cancel" | "close") {
+  if (actionId.value) return;
+  actionId.value = row.orderId;
   try {
     const { value } = await ElMessageBox.prompt(
-      "请输入取消原因",
-      `取消订单 ${row.orderNo}`,
+      kind === "cancel"
+        ? "取消前须撤销未执行任务；已实提订单不能取消。请填写取消原因。"
+        : "系统将核验全部提货任务、运输和交付事实。有数量缺口时须填写供应商少备关闭原因。",
+      (kind === "cancel" ? "取消订单 " : "订单完结 ") + row.orderNo,
       {
-        inputValidator: value => !!value?.trim() || "请填写取消原因",
-        inputPlaceholder: "取消原因",
-        confirmButtonText: "确认取消"
+        inputPlaceholder:
+          kind === "cancel"
+            ? "取消原因（必填）"
+            : "差异关闭原因；正常完成可留空",
+        inputValidator: value =>
+          kind === "close" || !!value?.trim() || "取消原因不能为空",
+        inputType: "textarea"
       }
     );
-    await orderApi.cancel(row.orderId, value.trim());
-    ElMessage.success("订单已取消");
+    if (kind === "cancel") await orderApi.cancel(row.orderId, value.trim());
+    else await orderApi.close(row.orderId, value?.trim() || undefined);
+    ElMessage.success(kind === "cancel" ? "订单已取消" : "订单已完结");
     await load();
+    if (selected.value?.orderId === row.orderId) await show(row, true);
   } catch (reason) {
     if (reason !== "cancel" && reason !== "close") error(reason);
+  } finally {
+    actionId.value = undefined;
   }
+}
+function active(row: TmsOrder) {
+  return (
+    row.status === "PENDING" ||
+    row.status === "EXECUTING" ||
+    row.status === "DELIVERED"
+  );
 }
 onMounted(load);
 </script>
 <template>
-  <div class="order-page">
+  <div class="order-page tms-workspace">
+    <WorkspaceHeader
+      title="运输需求工作台"
+      description="查看每一票运输需求、交付进度和容器流转。"
+    />
     <el-card shadow="never">
       <template #header
-        ><strong>订单管理</strong>
-        <div class="hint">
-          查询、编辑及取消订单；现场提货和装车在小程序办理。
+        ><div class="header">
+          <div>
+            <strong>运输需求管理</strong>
+            <p class="hint">
+              一个订单一个最终目的地，支持分批提货、多容器和多车次。
+            </p>
+          </div>
+          <div>
+            <el-button
+              v-if="hasPerms('tms:order:split')"
+              type="primary"
+              :disabled="!checkedOrders.length || loading"
+              @click="generateTrip"
+              >生成车次{{
+                checkedOrders.length ? `（${checkedOrders.length}）` : ""
+              }}</el-button
+            >
+            <el-button
+              v-if="hasPerms('tms:order:create')"
+              type="primary"
+              @click="create"
+              >创建订单</el-button
+            >
+          </div>
         </div></template
       >
       <el-form inline @submit.prevent="search">
@@ -127,22 +188,9 @@ onMounted(load);
             clearable
             @keyup.enter="search"
         /></el-form-item>
-        <el-form-item label="发货联系人"
-          ><el-input v-model="filter.senderName" clearable
-        /></el-form-item>
-        <el-form-item label="收货联系人"
-          ><el-input v-model="filter.receiverName" clearable
-        /></el-form-item>
-        <el-form-item label="运单号"
+        <el-form-item label="发货人"
           ><el-input
-            v-model="filter.waybillNo"
-            placeholder="关联运单号"
-            clearable
-            @keyup.enter="search"
-        /></el-form-item>
-        <el-form-item label="发货电话"
-          ><el-input
-            v-model="filter.senderPhone"
+            v-model="filter.senderName"
             clearable
             @keyup.enter="search"
         /></el-form-item>
@@ -152,154 +200,111 @@ onMounted(load);
             clearable
             @keyup.enter="search"
         /></el-form-item>
-        <el-form-item label="温区"
+        <el-form-item label="状态"
           ><el-select
-            v-model="filter.tempZone"
+            v-model="filter.statuses"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
             clearable
-            placeholder="全部温区"
-            style="width: 140px"
+            style="width: 240px"
             ><el-option
-              v-for="(label, value) in tempLabels"
+              v-for="(label, value) in statusLabels"
               :key="value"
               :label="label"
-              :value="Number(value)" /></el-select
+              :value="value" /></el-select
         ></el-form-item>
-        <el-form-item label="下单时间"
+        <el-form-item label="创建时间"
           ><el-date-picker
             v-model="createRange"
             type="datetimerange"
             format="YYYY-MM-DD HH:mm:ss"
             value-format="x"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
         /></el-form-item>
-        <el-form-item label="状态"
-          ><el-select
-            v-model="filter.status"
-            clearable
-            placeholder="全部状态"
-            style="width: 140px"
-            ><el-option
-              v-for="(label, value) in statusLabels"
-              :key="value"
-              :label="label"
-              :value="Number(value)" /></el-select
-        ></el-form-item>
         <el-form-item
           ><el-button type="primary" @click="search">查询</el-button
           ><el-button @click="reset">重置</el-button></el-form-item
         >
       </el-form>
       <el-table
-        v-loading="loading || detailLoading"
+        v-loading="loading"
         :data="rows"
         row-key="orderId"
-        empty-text="暂无符合条件的订单"
+        border
+        @selection-change="checkedOrders = $event"
       >
-        <el-table-column prop="orderNo" label="订单号" min-width="200" />
-        <el-table-column label="状态" width="100"
+        <el-table-column
+          type="selection"
+          width="50"
+          fixed
+          :selectable="selectable"
+        />
+        <el-table-column prop="orderNo" label="订单号" min-width="220" fixed />
+        <el-table-column label="状态" width="110"
           ><template #default="{ row }"
-            ><el-tag
-              :type="
-                row.status === 99
-                  ? 'info'
-                  : row.status === 30
-                    ? 'success'
-                    : 'primary'
-              "
-              >{{ statusLabels[row.status] }}</el-tag
-            ></template
+            ><el-tag>{{
+              statusLabels[row.status as OrderStatus]
+            }}</el-tag></template
           ></el-table-column
         >
-        <el-table-column label="温区" width="90"
-          ><template #default="{ row }">{{
-            tempLabels[row.tempZone]
-          }}</template></el-table-column
-        >
-        <el-table-column label="下单时间" width="180"
-          ><template #default="{ row }">{{
-            formatDateTime(row.createTime)
-          }}</template></el-table-column
-        >
-        <el-table-column label="商品数量" width="110"
-          ><template #default="{ row }">{{
-            row.goodsQuantity ?? "—"
-          }}</template></el-table-column
-        >
+        <el-table-column prop="senderName" label="发货人" min-width="120" />
         <el-table-column
-          prop="sender.name"
-          label="发货联系人"
-          min-width="100"
-        />
-        <el-table-column
-          prop="senderAddress.formattedAddress"
-          label="提货地址"
-          min-width="180"
+          prop="destinationAddress"
+          label="最终目的地地址"
+          min-width="220"
           show-overflow-tooltip
         />
-        <el-table-column
-          prop="receiver.name"
-          label="收货联系人"
-          min-width="100"
-        />
-        <el-table-column
-          prop="receiverAddress.formattedAddress"
-          label="送货地址"
-          min-width="180"
-          show-overflow-tooltip
-        />
-        <el-table-column label="预计重量(kg)" width="140"
-          ><template #default="{ row }">{{
-            formatWeight(row.weightKg)
-          }}</template></el-table-column
-        >
-        <el-table-column label="预计体积(m³)" width="120"
-          ><template #default="{ row }">{{
-            formatVolume(row.volumeCm3)
-          }}</template></el-table-column
-        >
-        <el-table-column label="计划提货时间" width="180"
+        <el-table-column prop="receiverName" label="收货人" width="120" />
+        <el-table-column prop="receiverPhone" label="收货电话" width="150" />
+        <el-table-column label="计划提货" width="180"
           ><template #default="{ row }">{{
             formatDateTime(row.expectPickupTime)
           }}</template></el-table-column
         >
-        <el-table-column label="计划送达时间" width="180"
+        <el-table-column label="计划送达" width="180"
           ><template #default="{ row }">{{
             formatDateTime(row.expectDeliveryTime)
           }}</template></el-table-column
         >
-        <el-table-column label="实际提货时间" width="180"
+        <el-table-column label="创建时间" width="180"
           ><template #default="{ row }">{{
-            formatDateTime(row.actualPickupTime)
+            formatDateTime(row.createTime)
           }}</template></el-table-column
         >
-        <el-table-column label="提货完成时间" width="180"
-          ><template #default="{ row }">{{
-            formatDateTime(row.actualCompletionTime)
-          }}</template></el-table-column
-        >
-
-        <el-table-column label="操作" fixed="right" width="180"
-          ><template #default="{ row }"
-            ><el-button
+        <el-table-column label="操作" width="230" fixed="right"
+          ><template #default="{ row }">
+            <el-button
               link
               type="primary"
-              @click="show(row as ExpressOrder, true)"
+              :disabled="detailLoading"
+              @click="show(row as TmsOrder, true)"
               >查看</el-button
-            ><el-button
+            >
+            <el-button
+              v-if="hasPerms('tms:order:edit')"
               link
               type="primary"
-              :disabled="row.status !== 10"
-              @click="show(row as ExpressOrder, false)"
+              :disabled="!active(row as TmsOrder) || detailLoading"
+              @click="show(row as TmsOrder, false)"
               >编辑</el-button
-            ><el-button
+            >
+            <el-button
+              v-if="hasPerms('tms:order:cancel')"
               link
               type="danger"
-              :disabled="row.status !== 10"
-              @click="cancel(row as ExpressOrder)"
+              :disabled="!active(row as TmsOrder) || !!actionId"
+              @click="action(row as TmsOrder, 'cancel')"
               >取消</el-button
-            ></template
-          ></el-table-column
+            >
+            <el-button
+              v-if="hasPerms('tms:order:close')"
+              link
+              type="primary"
+              :disabled="!active(row as TmsOrder) || !!actionId"
+              @click="action(row as TmsOrder, 'close')"
+              >完结</el-button
+            >
+          </template></el-table-column
         >
       </el-table>
       <el-pagination
@@ -308,23 +313,34 @@ onMounted(load);
         :total="total"
         :page-sizes="[10, 20, 50]"
         layout="total, sizes, prev, pager, next"
-        style="margin-top: 20px"
+        class="mt-4"
         @current-change="load"
         @size-change="search"
       />
     </el-card>
     <OrderDialog
-      v-if="editOrder"
-      v-model="editOpen"
-      :order="editOrder"
+      v-if="dialogOpen"
+      v-model="dialogOpen"
+      :order="selected"
       :readonly="readonly"
       @saved="load"
+    />
+    <GenerateTripDrawer
+      v-model="tripOpen"
+      :order-ids="tripOrderIds"
+      @saved="tripSaved"
     />
   </div>
 </template>
 <style scoped>
 .order-page {
-  padding: 16px;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .hint {

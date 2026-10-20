@@ -1,12 +1,25 @@
 <script setup lang="ts">
 withDefaults(
-  defineProps<{ title: string; size?: string; loading?: boolean }>(),
+  defineProps<{
+    title: string;
+    size?: string;
+    loading?: boolean;
+    busy?: boolean;
+  }>(),
   { size: "720px" }
 );
 const open = defineModel<boolean>({ required: true });
 </script>
 <template>
-  <el-drawer v-model="open" :title="title" :size="size" destroy-on-close>
+  <el-drawer
+    v-model="open"
+    :title="title"
+    :size="size"
+    :close-on-click-modal="!busy"
+    :close-on-press-escape="!busy"
+    :show-close="!busy"
+    destroy-on-close
+  >
     <div v-loading="loading"><slot /></div>
     <template #footer
       ><slot name="footer"
