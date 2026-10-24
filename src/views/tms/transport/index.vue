@@ -6,7 +6,12 @@ import { hasPerms } from "@/utils/auth";
 import { formatDateTime } from "@/utils/date";
 import { carrierApi, driverApi, vehicleApi } from "@/api/tms";
 import type { Carrier, Driver, Vehicle } from "@/api/tms";
-import { tripApi, type Trip, type TripStop } from "@/api/tmsTransport";
+import {
+  tripApi,
+  type Trip,
+  type TripStop,
+  type UnloadCommand
+} from "@/api/tmsTransport";
 import type { PickupContainer } from "@/api/tmsPickupExecution";
 
 interface OperateOption {
@@ -20,10 +25,11 @@ import { tripCargoByOrder } from "./presentation";
 defineOptions({ name: "TmsTransport" });
 
 const tripLabels: Record<string, string> = {
-  PENDING: "待派车",
-  WAITING_LOADING: "待装货",
+  PENDING_ASSIGNMENT: "待指派",
+  PENDING_EXECUTION: "待执行",
   WAITING_DEPARTURE: "待发车",
-  EXECUTING: "执行中",
+  IN_TRANSIT: "运输中",
+  DELIVERED: "已送达",
   COMPLETED: "已完成",
   CANCELLED: "已取消"
 };
@@ -65,13 +71,29 @@ const operateStop = ref<TripStop>();
 const operateMode = ref<"load" | "unload">("load");
 const operateOptions = ref<OperateOption[]>([]);
 const operatePicked = ref<string[]>([]);
+const scanCode = ref("");
+const unloadQuantities = ref<Record<string, string>>({});
+const unloadRequestId = ref("");
+const pendingUnload = ref<UnloadCommand>();
+
+function scanPallet() {
+  const code = scanCode.value.trim();
+  const pallet = operateOptions.value.find(row => row.containerCode === code);
+  if (!pallet) {
+    ElMessage.warning("托盘不属于本站作业清单");
+    return;
+  }
+  if (!operatePicked.value.includes(pallet.containerId))
+    operatePicked.value.push(pallet.containerId);
+  scanCode.value = "";
+}
 
 const canAssign = computed(() => hasPerms("tms:trip:assign"));
 const canExecute = computed(() => hasPerms("tms:trip:execute"));
 const assignable = computed(
   () =>
     !!trip.value &&
-    ["PENDING", "WAITING_LOADING"].includes(trip.value.status) &&
+    ["PENDING_ASSIGNMENT", "PENDING_EXECUTION"].includes(trip.value.status) &&
     canAssign.value
 );
 
@@ -146,8 +168,10 @@ async function run(action: () => Promise<unknown>, message: string) {
     ElMessage.success(message);
     trip.value = await tripApi.detail(trip.value!.tripId);
     assignCarrierId.value = trip.value.carrierId ?? assignCarrierId.value;
+    return true;
   } catch (reason) {
     failure(reason);
+    return false;
   } finally {
     busy.value = false;
   }
@@ -198,7 +222,8 @@ async function openLoad(stop: TripStop) {
     operateOptions.value = loadable.map(row => ({
       containerId: row.containerId,
       containerCode: row.containerCode,
-      destinationNodeId: row.destinationNodeId
+      destinationNodeId: row.destinationNodeId,
+      items: row.items
     }));
   } catch (reason) {
     failure(reason);
@@ -220,27 +245,80 @@ function openUnload(stop: TripStop) {
       items: row.items
     }));
   operatePicked.value = [];
+  unloadQuantities.value = {};
+  unloadRequestId.value = crypto.randomUUID();
+  pendingUnload.value = undefined;
+  scanCode.value = "";
 }
 
 async function submitOperate() {
   if (!trip.value || !operateStop.value) return;
   if (!operatePicked.value.length) {
-    ElMessage.warning("请勾选容器");
+    ElMessage.warning("请逐盘扫描托盘码");
     return;
   }
   const stopId = operateStop.value.stopId;
   const containerIds = operatePicked.value;
+  const pallets = operateOptions.value.filter(row =>
+    containerIds.includes(row.containerId)
+  );
+  if (operateMode.value === "unload") {
+    for (const pallet of pallets) {
+      for (const item of pallet.items || []) {
+        const quantity = unloadQuantities.value[item.containerItemId];
+        if (
+          !quantity ||
+          !/^\d{1,14}$/.test(quantity) ||
+          Number(quantity) >
+            Number(item.quantity) - Number(item.receivedQuantity || 0)
+        ) {
+          ElMessage.warning(
+            "请逐项填写本次实际卸货数量，未卸填零，不能超过剩余数量"
+          );
+          return;
+        }
+      }
+    }
+  }
+  if (operateMode.value === "unload" && !pendingUnload.value) {
+    pendingUnload.value = {
+      requestId: unloadRequestId.value,
+      stopId,
+      pallets: pallets.map(pallet => ({
+        containerId: pallet.containerId,
+        containerCode: pallet.containerCode,
+        items: (pallet.items || []).map(item => ({
+          containerItemId: item.containerItemId,
+          quantity: unloadQuantities.value[item.containerItemId]
+        }))
+      }))
+    };
+  }
   const action =
     operateMode.value === "load"
-      ? () => tripApi.load(trip.value!.tripId, stopId, containerIds)
-      : () => tripApi.unload(trip.value!.tripId, stopId, containerIds);
-  operateOpen.value = false;
-  await run(action, operateMode.value === "load" ? "已装车" : "已卸货");
+      ? () =>
+          tripApi.load(
+            trip.value!.tripId,
+            stopId,
+            containerIds,
+            Object.fromEntries(
+              pallets.map(row => [row.containerId, row.containerCode])
+            )
+          )
+      : () => tripApi.unload(trip.value!.tripId, pendingUnload.value!);
+  const succeeded = await run(
+    action,
+    operateMode.value === "load" ? "已装车" : "实际卸货已登记"
+  );
+  if (succeeded) {
+    pendingUnload.value = undefined;
+    operateOpen.value = false;
+  }
 }
 
 function completeTrip() {
   ElMessageBox.confirm(
-    "全部停靠点已离站且容器卸空，确认完成本车次？",
+    "最后节点已签到且全部托盘卸空，确认完成本车次？",
     "完成车次",
     { type: "warning" }
   ).then(() => {
@@ -257,7 +335,7 @@ onMounted(() => void load());
       <div>
         <h2>车次执行</h2>
         <p>
-          派车、签到、装车、发车、卸货、离站；中途卸货只结束对应容器的运输关系。
+          指派车辆司机、司机接收、发车、提货装车、到站实卸；最后节点签到后已送达，卸完后已完成。
         </p>
       </div>
     </header>
@@ -406,18 +484,36 @@ onMounted(() => void load());
               :loading="busy"
               :disabled="detailLoading"
               @click="assign"
-              >确认派车</el-button
+              >确认指派</el-button
             >
           </div>
           <p class="assign-tip">
-            车辆和司机必须属于所选承运人；派车后车次进入待装货。
+            车辆和司机必须属于所选承运人；指派后车次进入待执行，司机接收确认后进入待发车。
           </p>
         </div>
 
         <div class="flex-bc mt-4 mb-2">
           <strong>停靠点作业</strong>
           <el-button
-            v-if="trip.status === 'EXECUTING' && canExecute"
+            v-if="
+              canAssign &&
+              [
+                'PENDING_ASSIGNMENT',
+                'PENDING_EXECUTION',
+                'WAITING_DEPARTURE'
+              ].includes(trip.status)
+            "
+            type="danger"
+            :disabled="busy"
+            @click="
+              ElMessageBox.confirm('确认取消该未发车车次？', '取消车次').then(
+                () => run(() => tripApi.cancel(trip!.tripId), '车次已取消')
+              )
+            "
+            >取消车次</el-button
+          >
+          <el-button
+            v-if="trip.status === 'DELIVERED' && canExecute"
             type="primary"
             :loading="busy"
             @click="completeTrip"
@@ -456,7 +552,7 @@ onMounted(() => void load());
             v-if="
               canExecute &&
               trip &&
-              !['COMPLETED', 'CANCELLED'].includes(trip.status)
+              ['IN_TRANSIT', 'DELIVERED'].includes(trip.status)
             "
             label="作业"
             width="230"
@@ -569,7 +665,8 @@ onMounted(() => void load());
                   min-width="200"
                 />
                 <el-table-column prop="goodsName" label="商品" />
-                <el-table-column prop="quantity" label="本板数量" />
+                <el-table-column prop="quantity" label="实际装货数量" />
+                <el-table-column prop="receivedQuantity" label="实际卸货数量" />
                 <el-table-column prop="unit" label="单位" />
               </el-table> </template
           ></el-table-column>
@@ -656,35 +753,58 @@ onMounted(() => void load());
       :busy="busy"
       @submit="submitOperate"
     >
-      <el-table
-        :data="operateOptions"
-        border
-        empty-text="该停靠点暂无候选容器"
-        @selection-change="
-          (picked: Array<{ containerId: string }>) =>
-            (operatePicked = picked.map(row => row.containerId))
-        "
+      <el-input
+        v-model="scanCode"
+        placeholder="扫描托盘码后回车"
+        @keyup.enter="scanPallet"
+      />
+      <el-button @click="scanPallet">确认托盘码</el-button>
+      <div
+        v-for="pallet in operateOptions"
+        :key="pallet.containerId"
+        class="assign-card"
       >
-        <el-table-column type="selection" width="44" />
-        <el-table-column prop="containerCode" label="容器码" min-width="150" />
-        <el-table-column
-          v-if="operateMode === 'load'"
-          prop="destinationNodeId"
-          label="最终目的地"
-          min-width="160"
-        />
-        <el-table-column v-else label="商品" min-width="220"
-          ><template #default="{ row }"
-            >{{ row.items?.length ?? 0 }} 项 ·
-            {{ row.items?.map(item => item.goodsName).join("、") }}</template
-          ></el-table-column
+        <strong>{{ pallet.containerCode }}</strong>
+        <el-tag v-if="operatePicked.includes(pallet.containerId)"
+          >已扫码</el-tag
         >
-      </el-table>
+        <el-button
+          v-else-if="pallet.containerCode.startsWith('V')"
+          @click="
+            scanCode = pallet.containerCode;
+            scanPallet();
+          "
+          >选择虚拟托盘</el-button
+        >
+        <el-table :data="pallet.items || []" border>
+          <el-table-column prop="goodsName" label="商品" />
+          <el-table-column prop="quantity" label="实际装货数量" />
+          <el-table-column
+            v-if="operateMode === 'unload'"
+            prop="receivedQuantity"
+            label="累计实卸"
+          />
+          <el-table-column
+            v-if="operateMode === 'unload'"
+            label="本次实际卸货数量"
+          >
+            <template #default="{ row }">
+              <el-input
+                v-model="unloadQuantities[row.containerItemId]"
+                :disabled="!operatePicked.includes(pallet.containerId)"
+                inputmode="numeric"
+                maxlength="14"
+                placeholder="未卸填零"
+              />
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
       <p class="assign-tip">
         {{
           operateMode === "load"
             ? "容器整板装车；到站签到后才能装车，离站前须装完本点计划容器。"
-            : "整容器卸货并逐项确认商品数量；最终目的地卸货生成订单完成记录。"
+            : "扫码后逐项填写本次实际卸货数量；累计不得超过实提数量，未卸完保持待卸。"
         }}
       </p>
     </BusinessDialog>

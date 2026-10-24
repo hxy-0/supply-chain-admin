@@ -19,9 +19,14 @@ export interface PickupContainer {
     orderItemId: string;
     orderId: string;
     orderNo: string;
+    skuId?: number;
+    skuCode?: string;
+    specText?: string;
     goodsName: string;
     unit: string;
     quantity: Quantity;
+    packedQuantity?: Quantity;
+    receivedQuantity?: Quantity;
     pickedTime: number;
   }[];
 }
@@ -55,6 +60,11 @@ export const pickupExecutionApi = {
     request<PickupTask>("get", `/${encodeURIComponent(id)}`),
   containers: (id: string) =>
     request<PickupContainer[]>("get", `/${encodeURIComponent(id)}/containers`),
+  scan: (id: string, containerCode: string) =>
+    request<PickupContainer>(
+      "get",
+      `/${encodeURIComponent(id)}/scan?containerCode=${encodeURIComponent(containerCode)}`
+    ),
   confirm: (id: string, command: PickupConfirmCommand) =>
     request<PickupContainer>(
       "post",

@@ -62,18 +62,30 @@ export interface Trip {
   driverName?: string;
   shiftId?: string;
   status:
-    | "PENDING"
-    | "WAITING_LOADING"
+    | "PENDING_ASSIGNMENT"
+    | "PENDING_EXECUTION"
     | "WAITING_DEPARTURE"
-    | "EXECUTING"
+    | "IN_TRANSIT"
+    | "DELIVERED"
     | "COMPLETED"
     | "CANCELLED";
   plannedDepartureTime?: number;
+  acceptedTime?: number;
   actualDepartureTime?: number;
   completedTime?: number;
   stops: TripStop[];
   containers: TripCargo[];
   unloadingTasks: UnloadingTask[];
+}
+
+export interface UnloadCommand {
+  requestId: string;
+  stopId: string;
+  pallets: {
+    containerId: string;
+    containerCode: string;
+    items: { containerItemId: string; quantity: string }[];
+  }[];
 }
 
 export interface TripQuery {
@@ -107,6 +119,8 @@ export const tripApi = {
       "get",
       `${base}/${encodeURIComponent(id)}/loadable?stopId=${encodeURIComponent(stopId)}`
     ),
+  cancel: (id: string) =>
+    request<Trip>("post", `${base}/${encodeURIComponent(id)}/cancel`),
   assign: (
     id: string,
     data: { carrierId?: string; vehicleId: string; driverId: string }
@@ -116,21 +130,24 @@ export const tripApi = {
       "post",
       `${base}/${encodeURIComponent(id)}/arrive/${encodeURIComponent(stopId)}`
     ),
-  load: (id: string, stopId: string, containerIds: string[]) =>
+  load: (
+    id: string,
+    stopId: string,
+    containerIds: string[],
+    scannedCodes: Record<string, string>
+  ) =>
     request<Trip>("post", `${base}/${encodeURIComponent(id)}/load`, {
       stopId,
-      containerIds
+      containerIds,
+      scannedCodes
     }),
   depart: (id: string, stopId: string) =>
     request<Trip>(
       "post",
       `${base}/${encodeURIComponent(id)}/depart/${encodeURIComponent(stopId)}`
     ),
-  unload: (id: string, stopId: string, containerIds: string[]) =>
-    request<Trip>("post", `${base}/${encodeURIComponent(id)}/unload`, {
-      stopId,
-      containerIds
-    }),
+  unload: (id: string, command: UnloadCommand) =>
+    request<Trip>("post", `${base}/${encodeURIComponent(id)}/unload`, command),
   complete: (id: string) =>
     request<Trip>("post", `${base}/${encodeURIComponent(id)}/complete`)
 };

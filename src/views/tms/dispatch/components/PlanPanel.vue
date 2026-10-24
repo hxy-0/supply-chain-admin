@@ -23,10 +23,11 @@ const planLabels: Record<string, string> = {
   CANCELLED: "已取消"
 };
 const tripLabels: Record<string, string> = {
-  PENDING: "待派车",
-  WAITING_LOADING: "待装货",
+  PENDING_ASSIGNMENT: "待指派",
+  PENDING_EXECUTION: "待执行",
   WAITING_DEPARTURE: "待发车",
-  EXECUTING: "执行中",
+  IN_TRANSIT: "运输中",
+  DELIVERED: "已送达",
   COMPLETED: "已完成",
   CANCELLED: "已取消"
 };

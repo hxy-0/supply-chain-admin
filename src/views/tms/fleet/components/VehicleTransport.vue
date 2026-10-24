@@ -17,10 +17,11 @@ const selected = computed(
   () => rows.value.find(row => row.tripId === selectedId.value) || rows.value[0]
 );
 const labels: Record<string, string> = {
-  PENDING: "待安排",
-  WAITING_LOADING: "待装车",
+  PENDING_ASSIGNMENT: "待指派",
+  PENDING_EXECUTION: "待执行",
   WAITING_DEPARTURE: "待发车",
-  EXECUTING: "运输中",
+  IN_TRANSIT: "运输中",
+  DELIVERED: "已送达",
   COMPLETED: "已完成",
   CANCELLED: "已取消"
 };
