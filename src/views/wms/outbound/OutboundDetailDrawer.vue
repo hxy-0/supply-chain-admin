@@ -11,7 +11,7 @@ function printPallets() {
   labels.value = (props.order?.pallets || []).map(pallet => ({
     code: pallet.containerCode,
     title: `卡板 ${pallet.containerCode}`,
-    subtitle: `${pallet.originWarehouseName} → ${pallet.destinationWarehouseName}`,
+    subtitle: `${pallet.originNodeName} → ${pallet.destinationNodeName}`,
     lines: pallet.products.map(
       product => `${product.skuCode || product.goodsName} × ${product.quantity}`
     )
@@ -26,8 +26,7 @@ const visible = defineModel<boolean>({ default: false });
     <template v-if="props.order">
       <h3>{{ order!.outboundNo }} · {{ outboundStatuses[order!.status] }}</h3>
       <p>
-        {{ order!.warehouseName }} → {{ order!.destinationWarehouseName }} ·
-        按单摘果
+        {{ order!.warehouseName }} → {{ order!.destinationNodeName }} · 按单摘果
       </p>
       <el-table :data="order!.items"
         ><el-table-column prop="skuCode" label="SKU" /><el-table-column
@@ -58,8 +57,8 @@ const visible = defineModel<boolean>({ default: false });
       >
         <h4>{{ pallet.containerCode }}</h4>
         <p>
-          {{ pallet.originWarehouseName }} →
-          {{ pallet.destinationWarehouseName }}
+          {{ pallet.originNodeName }} →
+          {{ pallet.destinationNodeName }}
         </p>
         <el-table :data="pallet.products"
           ><el-table-column prop="skuCode" label="SKU" /><el-table-column

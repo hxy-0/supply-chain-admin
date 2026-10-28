@@ -101,7 +101,7 @@ onMounted(() => load());
           prop="warehouseName"
           label="仓库"
         />
-        <el-table-column prop="destinationWarehouseName" label="目的仓" />
+        <el-table-column prop="destinationNodeName" label="收货节点" />
         <el-table-column label="状态"
           ><template #default="{ row }">{{
             outboundStatuses[row.status]

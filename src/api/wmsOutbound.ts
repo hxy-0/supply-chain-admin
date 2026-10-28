@@ -13,8 +13,8 @@ export interface OutboundItem {
 export interface OutboundPallet {
   containerId: string;
   containerCode: string;
-  originWarehouseName: string;
-  destinationWarehouseName: string;
+  originNodeName: string;
+  destinationNodeName: string;
   products: {
     skuId: Id;
     skuCode: string;
@@ -27,8 +27,8 @@ export interface OutboundOrder {
   outboundNo: string;
   warehouseId: Id;
   warehouseName: string;
-  destinationWarehouseId: Id;
-  destinationWarehouseName: string;
+  destinationNodeId: string;
+  destinationNodeName: string;
   status: number;
   orderNo?: string;
   createTime?: number;
@@ -44,7 +44,7 @@ export interface OutboundOrder {
 }
 export interface OutboundCreate {
   warehouseId: Id;
-  destinationWarehouseId: Id;
+  destinationNodeId: string;
   orderNo?: string;
   items: { skuId: Id; quantity: number }[];
 }

@@ -157,6 +157,7 @@ async function save() {
       <el-form-item label="物流节点" prop="logisticNodeId"
         ><el-select
           v-model="form.logisticNodeId"
+          :disabled="!!warehouse"
           filterable
           remote
           :remote-method="searchNodes"
@@ -168,6 +169,9 @@ async function save() {
             :label="node.name"
             :value="node.id" /></el-select
       ></el-form-item>
+      <el-text type="info"
+        >每个仓库绑定一个独立物流节点，创建后不可改绑；外部地点只需建物流节点。</el-text
+      >
       <el-alert
         v-if="nodeFailure"
         :title="nodeFailure"

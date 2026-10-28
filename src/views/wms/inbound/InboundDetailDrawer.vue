@@ -76,7 +76,7 @@ async function lookup() {
     <template v-if="order">
       <h3>{{ order.inboundNo }} · {{ inboundStatuses[order.status] }}</h3>
       <p>
-        {{ order.originWarehouseName }} → {{ order.warehouseName }} ·
+        收货仓：{{ order.warehouseName }} ·
         {{ order.supplierName || "未填写供应商" }}
       </p>
       <p>

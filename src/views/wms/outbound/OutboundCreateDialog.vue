@@ -3,7 +3,7 @@ import { reactive, ref, shallowRef } from "vue";
 import { ElMessage } from "element-plus";
 import { pmsRequest } from "@/api/pms";
 import type { Id } from "@/api/pms";
-import type { PageResult } from "@/api/tms";
+import { logisticNodeApi, type LogisticNode, type PageResult } from "@/api/tms";
 import { warehouseApi } from "@/api/wms";
 import type { Warehouse } from "@/api/wms";
 import { outboundApi } from "@/api/wmsOutbound";
@@ -12,11 +12,12 @@ const emit = defineEmits<{ saved: [] }>();
 const visible = defineModel<boolean>({ default: false });
 const busy = shallowRef(false);
 const warehouseId = shallowRef<Id>();
-const destinationWarehouseId = shallowRef<Id>();
+const destinationNodeId = shallowRef<string>();
 const orderNo = shallowRef("");
 const skuId = shallowRef<Id>();
 const quantity = shallowRef(1);
 const warehouseOptions = ref<Warehouse[]>([]);
+const destinationNodes = ref<LogisticNode[]>([]);
 const skuOptions = ref<{ sku: { skuId: Id; skuCode: string; name: string } }[]>(
   []
 );
@@ -28,6 +29,17 @@ async function warehouses(name = "") {
     ).records;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "仓库加载失败");
+  }
+}
+async function nodes(name = "") {
+  try {
+    destinationNodes.value = (
+      await logisticNodeApi.page({ name, pageNum: 1, pageSize: 100 })
+    ).records;
+  } catch (error) {
+    ElMessage.error(
+      error instanceof Error ? error.message : "物流节点加载失败"
+    );
   }
 }
 async function skus(skuCode = "") {
@@ -67,18 +79,20 @@ function add() {
 async function save() {
   if (
     !warehouseId.value ||
-    !destinationWarehouseId.value ||
+    !destinationNodeId.value ||
     !lines.length ||
-    String(warehouseId.value) === String(destinationWarehouseId.value)
+    warehouseOptions.value.find(
+      row => String(row.id) === String(warehouseId.value)
+    )?.logisticNodeId === destinationNodeId.value
   ) {
-    ElMessage.error("请选择不同的始发仓、目的仓并添加商品");
+    ElMessage.error("请选择出库仓库、不同的收货节点并添加商品");
     return;
   }
   busy.value = true;
   try {
     await outboundApi.create({
       warehouseId: warehouseId.value,
-      destinationWarehouseId: destinationWarehouseId.value,
+      destinationNodeId: destinationNodeId.value,
       orderNo: orderNo.value,
       items: lines.map(line => ({
         skuId: line.skuId,
@@ -97,11 +111,12 @@ async function save() {
 function opened() {
   lines.splice(0);
   warehouseId.value = undefined;
-  destinationWarehouseId.value = undefined;
+  destinationNodeId.value = undefined;
   orderNo.value = "";
   skuId.value = undefined;
   quantity.value = 1;
   void warehouses();
+  void nodes();
   void skus();
 }
 </script>
@@ -137,22 +152,22 @@ function opened() {
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="目的仓"
-        ><el-select
-          v-model="destinationWarehouseId"
+      <el-form-item label="收货节点" required>
+        <el-select
+          v-model="destinationNodeId"
           filterable
           remote
-          :remote-method="warehouses"
-          placeholder="搜索目的仓"
+          :remote-method="nodes"
+          placeholder="搜索收货物流节点（含外部地点）"
         >
           <el-option
-            v-for="warehouse in warehouseOptions"
-            :key="warehouse.id"
-            :value="warehouse.id"
-            :label="warehouse.name"
-            :disabled="String(warehouse.id) === String(warehouseId)"
-          /> </el-select
-      ></el-form-item>
+            v-for="node in destinationNodes"
+            :key="node.id"
+            :value="node.id"
+            :label="node.name"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="业务单号"
         ><el-input
           v-model="orderNo"
