@@ -12,6 +12,7 @@ const emit = defineEmits<{ saved: [] }>();
 const visible = defineModel<boolean>({ default: false });
 const busy = shallowRef(false);
 const warehouseId = shallowRef<Id>();
+const originWarehouseId = shallowRef<Id>();
 const supplierName = shallowRef("");
 const sourceType = shallowRef("MANUAL");
 const sourceNo = shallowRef("");
@@ -74,14 +75,20 @@ function add() {
   });
 }
 async function save() {
-  if (!warehouseId.value || !lines.length) {
-    ElMessage.error("请选择仓库并添加商品");
+  if (
+    !warehouseId.value ||
+    !originWarehouseId.value ||
+    !lines.length ||
+    String(warehouseId.value) === String(originWarehouseId.value)
+  ) {
+    ElMessage.error("请选择不同的来源仓、入库仓并添加商品");
     return;
   }
   busy.value = true;
   try {
     await inboundApi.create({
       warehouseId: warehouseId.value,
+      originWarehouseId: originWarehouseId.value,
       supplierName: supplierName.value,
       sourceType: sourceType.value,
       sourceNo: sourceNo.value.trim(),
@@ -104,6 +111,7 @@ async function save() {
 function opened() {
   lines.splice(0);
   warehouseId.value = undefined;
+  originWarehouseId.value = undefined;
   supplierName.value = "";
   sourceType.value = "MANUAL";
   sourceNo.value = "";
@@ -131,6 +139,22 @@ function opened() {
     @open="opened"
   >
     <el-form label-width="90px">
+      <el-form-item label="来源仓库" required>
+        <el-select
+          v-model="originWarehouseId"
+          filterable
+          remote
+          :remote-method="warehouses"
+          placeholder="搜索商品来源仓库"
+        >
+          <el-option
+            v-for="warehouse in warehouseOptions"
+            :key="warehouse.id"
+            :value="warehouse.id"
+            :label="warehouse.name"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="入库仓库">
         <el-select
           v-model="warehouseId"

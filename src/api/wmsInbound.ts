@@ -18,6 +18,8 @@ export interface InboundOrder {
   inboundNo: string;
   warehouseId: Id;
   warehouseName: string;
+  originWarehouseId: Id;
+  originWarehouseName: string;
   status: number;
   sourceType: string;
   sourceNo?: string;
@@ -27,6 +29,7 @@ export interface InboundOrder {
   items: InboundItem[];
 }
 export interface InboundCreate {
+  originWarehouseId: Id;
   sourceType: string;
   sourceNo?: string;
   deliveryBatchNo?: string;
@@ -45,6 +48,8 @@ export interface PutawayDetail {
   createTime?: number;
 }
 export interface InboundPallet {
+  originWarehouseId: Id;
+  destinationWarehouseId: Id;
   palletCode: string;
   items: {
     skuId: Id;

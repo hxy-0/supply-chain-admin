@@ -95,9 +95,10 @@ onMounted(() => load());
         <el-button native-type="submit" type="primary">查询</el-button>
       </el-form>
       <el-table v-loading="loading" :data="records" row-key="id">
+        <el-table-column prop="originWarehouseName" label="来源仓" />
         <el-table-column prop="inboundNo" label="入库单号" /><el-table-column
           prop="warehouseName"
-          label="仓库"
+          label="入库仓"
         />
         <el-table-column prop="sourceNo" label="来源单据" /><el-table-column
           prop="deliveryBatchNo"
