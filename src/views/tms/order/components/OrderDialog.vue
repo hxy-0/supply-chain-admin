@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, toRaw } from "vue";
 import { ElMessage, type FormInstance } from "element-plus";
-import BusinessDialog from "@/components/Tms/BusinessDialog.vue";
+import BusinessDrawer from "@/components/Tms/BusinessDrawer.vue";
 import OrderPickupPlanForm from "./OrderPickupPlanForm.vue";
 import OrderTransport from "./OrderTransport.vue";
 import { formatDateTime } from "@/utils/date";
@@ -226,13 +226,11 @@ async function save() {
 </script>
 
 <template>
-  <BusinessDialog
+  <BusinessDrawer
     v-model="open"
     :title="readonly ? '订单详情' : order ? '修改运输需求' : '创建运输需求'"
-    width="1120px"
+    size="90%"
     :busy="busy"
-    :readonly="readonly"
-    @submit="save"
   >
     <el-descriptions v-if="order" :column="3" border class="mb-4">
       <el-descriptions-item label="订单号">{{
@@ -456,5 +454,13 @@ async function save() {
       v-if="open && readonly && order"
       :order-id="order.orderId"
     />
-  </BusinessDialog>
+    <template #footer>
+      <el-button :disabled="busy" @click="open = false">{{
+        readonly ? "关闭" : "取消"
+      }}</el-button>
+      <el-button v-if="!readonly" type="primary" :loading="busy" @click="save"
+        >保存</el-button
+      >
+    </template>
+  </BusinessDrawer>
 </template>

@@ -126,6 +126,7 @@ const presentationJS = ts.transpileModule(presentationSource, {
 const {
   availablePickupQuantity,
   pickupAllocationError,
+  allocationPreview,
   statusLabels,
   validQuantity,
   validMeasurement,
@@ -149,6 +150,71 @@ test("allocation rejects excessive quantities and allows partial allocation", ()
     pickupAllocationError("99999999999999", "1", "99999999999998"),
     ""
   );
+});
+
+test("split and combined allocation preview preserves each order without adding unlike units", () => {
+  const orders = [
+    {
+      orderId: "O1",
+      orderNo: "D1",
+      items: [
+        {
+          orderItemId: "I1",
+          orderedQuantity: "99999999999999",
+          plannedQuantity: "1",
+          unit: "件"
+        },
+        {
+          orderItemId: "I2",
+          orderedQuantity: "10",
+          plannedQuantity: "0",
+          unit: "箱"
+        }
+      ]
+    },
+    {
+      orderId: "O2",
+      orderNo: "D2",
+      items: [
+        {
+          orderItemId: "I3",
+          orderedQuantity: "3",
+          plannedQuantity: "0",
+          unit: "吨"
+        }
+      ]
+    }
+  ];
+  const result = allocationPreview(orders, {
+    I1: "99999999999998",
+    I2: "4",
+    I3: "3"
+  });
+  assert.deepEqual(result, [
+    {
+      orderId: "O1",
+      orderNo: "D1",
+      selectedLines: 2,
+      remainingLines: 1,
+      invalidLines: 0,
+      allocatableLines: 2
+    },
+    {
+      orderId: "O2",
+      orderNo: "D2",
+      selectedLines: 1,
+      remainingLines: 0,
+      invalidLines: 0,
+      allocatableLines: 1
+    }
+  ]);
+  assert.equal(
+    allocationPreview(orders, { I1: "99999999999999" })[0].invalidLines,
+    1
+  );
+  assert.equal(allocationPreview(orders, { I2: "1.5" })[0].invalidLines, 1);
+  assert.equal(allocationPreview(orders, {})[0].remainingLines, 2);
+  assert.equal(orders[0].items[1].plannedQuantity, "0");
 });
 
 test("trip defaults and validation use integer goods quantities", () => {

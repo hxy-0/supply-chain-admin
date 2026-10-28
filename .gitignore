@@ -9,6 +9,7 @@ vite.config.*.timestamp*
 
 yarn.lock
 npm-debug.log*
+*.log
 .pnpm-error.log*
 .pnpm-debug.log
 tests/**/coverage/

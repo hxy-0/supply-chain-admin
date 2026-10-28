@@ -7,7 +7,6 @@ export interface Waybill {
   orderId: string;
   orderNo: string;
   pickupType: number;
-  tempZone: number;
   senderName: string;
   senderPhone: string;
   senderAddress: string;

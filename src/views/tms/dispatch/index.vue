@@ -74,9 +74,7 @@ onUnmounted(() => {
   detailVersion++;
 });
 function moveRange(delta: number) {
-  anchor.value = dayjs(anchor.value)
-    .add(delta * 7, "day")
-    .format("YYYY-MM-DD");
+  anchor.value = dayjs(anchor.value).add(delta, "day").format("YYYY-MM-DD");
 }
 function hhmm(value?: number) {
   const time = Number(value);

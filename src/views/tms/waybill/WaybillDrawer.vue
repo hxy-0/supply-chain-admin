@@ -4,7 +4,6 @@ import { formatDateTime } from "@/utils/date";
 import {
   statusLabels,
   statusTagTypes,
-  tempLabels,
   pickupTypeLabels,
   transportModeLabels,
   transportModeTagTypes,
@@ -31,9 +30,6 @@ const open = defineModel<boolean>({ required: true });
           statusLabels[detail.waybill.status]
         }}</el-tag></el-descriptions-item
       >
-      <el-descriptions-item label="温区">{{
-        tempLabels[detail.waybill.tempZone]
-      }}</el-descriptions-item>
       <el-descriptions-item label="取件方式">{{
         pickupTypeLabels[detail.waybill.pickupType] || "—"
       }}</el-descriptions-item>

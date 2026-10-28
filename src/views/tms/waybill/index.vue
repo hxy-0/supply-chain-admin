@@ -5,7 +5,6 @@ import { formatDateTime } from "@/utils/date";
 import {
   statusLabels,
   statusTagTypes,
-  tempLabels,
   formatWeight,
   formatVolume
 } from "./presentation";
@@ -19,7 +18,6 @@ const filter = reactive({
   senderName: "",
   receiverName: "",
   receiverPhone: "",
-  tempZone: undefined as number | undefined,
   status: undefined as number | undefined,
   pageNum: 1,
   pageSize: 10
@@ -70,7 +68,6 @@ function reset() {
   filter.receiverName = "";
   filter.receiverPhone = "";
   filter.status = undefined;
-  filter.tempZone = undefined;
   createRange.value = undefined;
   search();
 }
@@ -126,18 +123,6 @@ onMounted(load);
             clearable
             @keyup.enter="search"
         /></el-form-item>
-        <el-form-item label="温区"
-          ><el-select
-            v-model="filter.tempZone"
-            clearable
-            placeholder="全部温区"
-            style="width: 140px"
-            ><el-option
-              v-for="(label, value) in tempLabels"
-              :key="value"
-              :label="label"
-              :value="Number(value)" /></el-select
-        ></el-form-item>
         <el-form-item label="状态"
           ><el-select
             v-model="filter.status"
@@ -182,11 +167,6 @@ onMounted(load);
               statusLabels[row.status]
             }}</el-tag></template
           ></el-table-column
-        >
-        <el-table-column label="温区" width="90"
-          ><template #default="{ row }">{{
-            tempLabels[row.tempZone]
-          }}</template></el-table-column
         >
         <el-table-column
           prop="goodsSummary"

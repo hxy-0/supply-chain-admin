@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { orderApi, type OrderTransport } from "@/api/tmsOrder";
 import { formatDateTime } from "@/utils/date";
 
 const props = defineProps<{ orderId: string }>();
+const router = useRouter();
+const events: { field: keyof OrderTransport; label: string }[] = [
+  { field: "pickedTime", label: "初始实提" },
+  { field: "reservedTime", label: "绑定车次" },
+  { field: "loadedTime", label: "装车" },
+  { field: "departedTime", label: "发车" },
+  { field: "arrivedTime", label: "到站签到" },
+  { field: "unloadedTime", label: "实际卸货" }
+];
 const rows = ref<OrderTransport[]>([]);
 const loading = ref(false);
 const error = ref("");
@@ -43,67 +53,159 @@ watch(() => props.orderId, load, { immediate: true });
 </script>
 
 <template>
-  <h4 class="my-4">容器运输轨迹</h4>
-  <p class="mb-3 text-sm text-(--el-text-color-secondary)">
-    每行对应一个商品在一个容器运输段中的记录；各段数量不累加，最终仓卸货才计入完成。
-  </p>
-  <el-alert v-if="error" :title="error" type="error" :closable="false">
-    <el-button link type="primary" @click="load">重试</el-button>
-  </el-alert>
+  <div class="transport-heading">
+    <div>
+      <h4>容器运输轨迹</h4>
+      <p>
+        保留各车次与托盘的运输记录，展开查看实际作业时间；中转各段数量不累加，最终目的地卸货才计入完成。
+      </p>
+    </div>
+    <el-button :loading="loading" @click="load">刷新进度</el-button>
+  </div>
+  <el-alert v-if="error" :title="error" type="error" :closable="false"
+    ><el-button link type="primary" @click="load">重试</el-button></el-alert
+  >
   <el-table
     v-else
     v-loading="loading"
     :data="rows"
-    border
-    empty-text="尚无实提容器"
+    empty-text="尚无实提托盘，完成提货后将显示运输记录"
   >
-    <el-table-column
-      prop="containerCode"
-      label="容器码"
-      min-width="190"
-      fixed
-    />
-    <el-table-column prop="goodsName" label="商品" min-width="130" />
-    <el-table-column prop="quantity" label="本容器数量" width="120" />
-    <el-table-column prop="unit" label="单位" width="70" />
-    <el-table-column prop="tripNo" label="车次" min-width="200">
-      <template #default="{ row }">{{ row.tripNo || "尚未绑定车次" }}</template>
-    </el-table-column>
-    <el-table-column label="车次状态" width="120">
-      <template #default="{ row }">{{
-        statuses[row.tripStatus] || "—"
-      }}</template>
-    </el-table-column>
-    <el-table-column label="本段状态" width="110">
-      <template #default="{ row }">{{
-        segmentStatuses[row.segmentStatus] || "—"
-      }}</template>
-    </el-table-column>
-    <el-table-column prop="carrierName" label="承运人" min-width="130" />
-    <el-table-column prop="loadNodeName" label="装货节点" min-width="130" />
-    <el-table-column prop="unloadNodeName" label="卸货节点" min-width="130" />
-    <el-table-column
-      v-for="column in [
-        ['pickedTime', '初始实提'],
-        ['reservedTime', '绑定车次'],
-        ['loadedTime', '装车'],
-        ['departedTime', '发车'],
-        ['arrivedTime', '指定点签到'],
-        ['unloadedTime', '卸货']
-      ]"
-      :key="column[0]"
-      :label="column[1]"
-      width="180"
+    <el-table-column type="expand"
+      ><template #default="{ row }">
+        <div class="segment-detail">
+          <p>
+            承运人：{{ row.carrierName || "尚未指派" }} · 装货节点：{{
+              row.loadNodeName || "尚未绑定"
+            }}
+            · 卸货节点：{{ row.unloadNodeName || "尚未绑定" }}
+          </p>
+          <ol class="event-list">
+            <li
+              v-for="column in events"
+              :key="column.field"
+              :class="{ happened: row[column.field] }"
+            >
+              <strong>{{ column.label }}</strong
+              ><span>{{ formatDateTime(row[column.field]) }}</span>
+            </li>
+          </ol>
+        </div>
+      </template></el-table-column
     >
-      <template #default="{ row }">{{
-        formatDateTime(row[column[0]])
-      }}</template>
-    </el-table-column>
-    <el-table-column prop="receivedQuantity" label="本段卸货数量" width="130" />
-    <el-table-column
-      prop="completedQuantity"
-      label="本段最终交付"
-      width="130"
-    />
+    <el-table-column label="托盘 / 商品" min-width="230"
+      ><template #default="{ row }"
+        ><strong>{{ row.containerCode }}</strong>
+        <div class="secondary">
+          {{ row.goodsName }} · {{ row.quantity }} {{ row.unit }}
+        </div></template
+      ></el-table-column
+    >
+    <el-table-column label="关联车次" min-width="220"
+      ><template #default="{ row }"
+        ><el-button
+          v-if="row.tripNo"
+          link
+          type="primary"
+          @click="
+            router.push({
+              path: '/tms/transport',
+              query: { tripNo: row.tripNo }
+            })
+          "
+          >{{ row.tripNo }}</el-button
+        ><span v-else>尚未绑定车次</span>
+        <div class="secondary">
+          {{ statuses[row.tripStatus] || "待安排运输" }}
+        </div></template
+      ></el-table-column
+    >
+    <el-table-column label="本段运输" min-width="200"
+      ><template #default="{ row }"
+        ><div>
+          {{ row.loadNodeName || "待装货" }} →
+          {{ row.unloadNodeName || "待卸货" }}
+        </div>
+        <el-tag
+          size="small"
+          :type="row.segmentStatus === 'UNLOADED' ? 'success' : 'info'"
+          >{{ segmentStatuses[row.segmentStatus] || "待安排" }}</el-tag
+        ></template
+      ></el-table-column
+    >
+    <el-table-column label="本段已卸" width="130"
+      ><template #default="{ row }"
+        >{{ row.receivedQuantity ?? "—" }} {{ row.unit }}</template
+      ></el-table-column
+    >
+    <el-table-column label="最终交付" width="130"
+      ><template #default="{ row }"
+        >{{ row.completedQuantity }} {{ row.unit }}</template
+      ></el-table-column
+    >
   </el-table>
 </template>
+<style scoped>
+.transport-heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 24px 0 16px;
+}
+
+.transport-heading h4 {
+  margin: 0 0 8px;
+}
+
+.transport-heading p,
+.secondary,
+.segment-detail p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--tms-muted);
+}
+
+.transport-heading p {
+  margin: 0;
+}
+
+.secondary {
+  margin-top: 6px;
+}
+
+.segment-detail {
+  padding: 18px 24px;
+  background: var(--tms-soft);
+}
+
+.event-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.event-list li {
+  display: grid;
+  gap: 6px;
+  padding-left: 12px;
+  font-size: 12px;
+  border-left: 2px solid var(--tms-line);
+}
+
+.event-list .happened {
+  border-left-color: var(--el-color-success);
+}
+
+.event-list span {
+  color: var(--tms-muted);
+}
+
+@media (width <= 700px) {
+  .event-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+</style>

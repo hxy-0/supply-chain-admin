@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { hasPerms } from "@/utils/auth";
 import { formatDateTime } from "@/utils/date";
@@ -30,6 +30,13 @@ const actionId = ref<string>();
 const tripOpen = ref(false);
 const checkedOrders = ref<TmsOrder[]>([]);
 const tripOrderIds = ref<string[]>([]);
+const pageStatuses = computed(() =>
+  Object.entries(statusLabels).map(([status, label]) => ({
+    status: status as OrderStatus,
+    label,
+    count: rows.value.filter(row => row.status === status).length
+  }))
+);
 function selectable(row: TmsOrder) {
   return row.status === "PENDING" || row.status === "EXECUTING";
 }
@@ -65,7 +72,12 @@ async function load() {
     rows.value = page.records;
     total.value = page.total;
   } catch (reason) {
-    if (version === queryVersion) error(reason);
+    if (version === queryVersion) {
+      rows.value = [];
+      total.value = 0;
+      checkedOrders.value = [];
+      error(reason);
+    }
   } finally {
     if (version === queryVersion) loading.value = false;
   }
@@ -150,8 +162,19 @@ onMounted(load);
   <div class="order-page tms-workspace">
     <WorkspaceHeader
       title="运输需求工作台"
-      description="查看每一票运输需求、交付进度和容器流转。"
+      description="从运输需求到分批排车，跟进每个订单的提货、运输和交付。"
     />
+    <div class="order-statuses" aria-label="当前页订单状态">
+      <div
+        v-for="item in pageStatuses"
+        :key="item.status"
+        class="order-status-card"
+      >
+        <span>{{ item.label }}</span
+        ><strong>{{ item.count }}</strong
+        ><small>当前页</small>
+      </div>
+    </div>
     <el-card shadow="never">
       <template #header
         ><div class="header">
@@ -167,7 +190,7 @@ onMounted(load);
               type="primary"
               :disabled="!checkedOrders.length || loading"
               @click="generateTrip"
-              >生成车次{{
+              >分批 / 合单排车{{
                 checkedOrders.length ? `（${checkedOrders.length}）` : ""
               }}</el-button
             >
@@ -226,6 +249,21 @@ onMounted(load);
           ><el-button @click="reset">重置</el-button></el-form-item
         >
       </el-form>
+      <div v-if="checkedOrders.length" class="selection-summary">
+        <div>
+          <strong>已选 {{ checkedOrders.length }} 个订单</strong>
+          <p>
+            按本次商品数量安排一趟车；保留原订单和明细来源，未分配余量可继续排车。
+          </p>
+        </div>
+        <el-button
+          v-if="hasPerms('tms:order:split')"
+          type="primary"
+          :disabled="loading"
+          @click="generateTrip"
+          >配置本次排车</el-button
+        >
+      </div>
       <el-table
         v-loading="loading"
         :data="rows"
@@ -239,7 +277,17 @@ onMounted(load);
           fixed
           :selectable="selectable"
         />
-        <el-table-column prop="orderNo" label="订单号" min-width="220" fixed />
+        <el-table-column label="订单号" min-width="220" fixed
+          ><template #default="{ row }"
+            ><el-button
+              link
+              type="primary"
+              :disabled="detailLoading"
+              @click="show(row as TmsOrder, true)"
+              >{{ row.orderNo }}</el-button
+            ></template
+          ></el-table-column
+        >
         <el-table-column label="状态" width="110"
           ><template #default="{ row }"
             ><el-tag>{{
@@ -248,12 +296,19 @@ onMounted(load);
           ></el-table-column
         >
         <el-table-column prop="senderName" label="发货人" min-width="120" />
-        <el-table-column
-          prop="destinationAddress"
-          label="最终目的地地址"
-          min-width="220"
-          show-overflow-tooltip
-        />
+        <el-table-column label="运输线路" min-width="250"
+          ><template #default="{ row }"
+            ><div>{{ row.pickupNodeName || "提货点待补充" }}</div>
+            <small class="route-destination"
+              >→
+              {{
+                row.destinationNodeName ||
+                row.destinationAddress ||
+                "目的地待补充"
+              }}</small
+            ></template
+          ></el-table-column
+        >
         <el-table-column prop="receiverName" label="收货人" width="120" />
         <el-table-column prop="receiverPhone" label="收货电话" width="150" />
         <el-table-column label="计划提货" width="180"
@@ -335,6 +390,69 @@ onMounted(load);
 <style scoped>
 .order-page {
   min-width: 0;
+}
+
+.order-statuses {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.order-status-card {
+  padding: 18px;
+  background: var(--tms-panel);
+  border: 1px solid var(--tms-line);
+  border-radius: 14px;
+}
+
+.order-status-card span,
+.order-status-card small {
+  font-size: 12px;
+  color: var(--tms-muted);
+}
+
+.order-status-card strong {
+  display: block;
+  margin: 8px 0;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.order-status-card small {
+  font-size: 11px;
+}
+
+.selection-summary {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-7);
+  border-radius: 10px;
+}
+
+.selection-summary p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: var(--tms-muted);
+}
+
+.route-destination {
+  color: var(--tms-muted);
+}
+
+@media (width <= 800px) {
+  .order-statuses {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .selection-summary {
+    flex-wrap: wrap;
+  }
 }
 
 .header {

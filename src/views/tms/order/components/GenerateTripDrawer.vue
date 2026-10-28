@@ -19,7 +19,8 @@ import {
   pickupAllocationError,
   sortedPickupOrders,
   buildOrderTripRoute,
-  tripRouteError
+  tripRouteError,
+  allocationPreview
 } from "../presentation";
 
 const open = defineModel<boolean>({ required: true });
@@ -36,8 +37,12 @@ const items = computed(() =>
 const carriers = ref<Carrier[]>([]);
 const nodes = ref<LogisticNode[]>([]);
 const quantities = ref<Record<string, string>>({});
+const preview = computed(() =>
+  allocationPreview(orders.value, quantities.value)
+);
 const packageCounts = ref<Record<string, number | undefined>>({});
 const form = ref<GenerateTripCommand>(empty());
+let loadVersion = 0;
 const warehouses = computed(() =>
   nodes.value.filter(node =>
     [1, 2, 3].includes(Number(enumCode(node.nodeType, nodeTypes)))
@@ -82,7 +87,11 @@ async function searchNodes(name = "") {
   }
 }
 watch(open, async value => {
-  if (!value) return;
+  const current = ++loadVersion;
+  if (!value) {
+    loading.value = false;
+    return;
+  }
   form.value = empty();
   quantities.value = {};
   packageCounts.value = {};
@@ -95,6 +104,9 @@ watch(open, async value => {
       searchCarriers(),
       searchNodes()
     ]);
+    if (current !== loadVersion || !open.value) {
+      return;
+    }
     orders.value = sortedPickupOrders(detail);
     for (const order of orders.value) {
       packageCounts.value[order.orderId] = order.plannedPackageCount;
@@ -108,9 +120,13 @@ watch(open, async value => {
       if (remaining !== "0") quantities.value[item.orderItemId] = remaining;
     }
   } catch (reason) {
-    error(reason);
+    if (current === loadVersion) {
+      error(reason);
+    }
   } finally {
-    loading.value = false;
+    if (current === loadVersion) {
+      loading.value = false;
+    }
   }
 });
 function planMissing(order: TmsOrder) {
@@ -170,7 +186,10 @@ watch(
     });
   }
 );
-onBeforeUnmount(() => routeSortable?.destroy());
+onBeforeUnmount(() => {
+  loadVersion++;
+  routeSortable?.destroy();
+});
 function addStop() {
   form.value.stops.splice(Math.max(1, form.value.stops.length - 1), 0, {
     nodeId: "",
@@ -178,6 +197,9 @@ function addStop() {
   });
 }
 async function save() {
+  if (busy.value || loading.value) {
+    return;
+  }
   if (
     !orders.value.length ||
     orders.value.some(order => !["PENDING", "EXECUTING"].includes(order.status))
@@ -207,16 +229,17 @@ async function save() {
         `${item.orderNo} · ${item.goodsName}：${message}`
       );
   }
-  if (
-    orders.value.some(
-      order =>
-        !order.items.some(item =>
-          requested.some(line => line.orderItemId === item.orderItemId)
-        )
-    )
-  )
+  const emptyOrders = orders.value.filter(
+    order =>
+      !order.items.some(item =>
+        requested.some(line => line.orderItemId === item.orderItemId)
+      )
+  );
+  if (emptyOrders.length)
     return ElMessage.warning(
-      "每个选中订单至少需要一项本次提货商品；已全部占用的订单请取消勾选"
+      `${emptyOrders
+        .map(order => order.orderNo)
+        .join("、")} 没有可分配商品（余量已用完），请取消勾选后再排车`
     );
   if (!form.value.carrierId || orders.value.some(planMissing))
     return ElMessage.warning("请选择承运人，订单发货信息及计划必须完整");
@@ -285,17 +308,70 @@ async function save() {
 <template>
   <BusinessDrawer
     v-model="open"
-    title="生成车次"
+    title="分批 / 合单排车"
     size="90%"
     :busy="busy || loading"
   >
     <div v-loading="loading">
       <el-alert
-        :title="`已选择 ${orders.length} 个订单，默认运输尚未提货且未占用的商品。`"
+        :title="`已选择 ${orders.length} 个订单，按本次数量合到一趟车；需要拆车时仅填写本次计划量，余量继续排车。`"
         type="info"
         :closable="false"
         class="mb-4"
       />
+      <section class="allocation-preview" aria-label="排车预览">
+        <header>
+          <h3>本次排车预览</h3>
+          <span>{{ form.stops.length }} 个停靠点 · 原订单保持独立</span>
+        </header>
+        <div class="preview-orders">
+          <article v-for="item in preview" :key="item.orderId">
+            <strong>{{ item.orderNo }}</strong>
+            <p>本次分配 {{ item.selectedLines }} 项商品</p>
+            <el-tag
+              :type="
+                item.invalidLines || !item.allocatableLines
+                  ? 'danger'
+                  : item.remainingLines
+                    ? 'warning'
+                    : 'success'
+              "
+              size="small"
+              >{{
+                item.invalidLines
+                  ? `${item.invalidLines} 项数量需检查`
+                  : !item.allocatableLines
+                    ? "无可分配商品，请取消勾选"
+                    : item.remainingLines
+                      ? `剩余 ${item.remainingLines} 项可后续排车`
+                      : "本次全部分配"
+              }}</el-tag
+            >
+          </article>
+        </div>
+        <ol class="route-preview">
+          <li
+            v-for="(stop, index) in form.stops"
+            :key="`${stop.nodeId}-${index}`"
+          >
+            <small
+              >{{ index + 1 }} · {{ stop.pickup ? "提货" : "送达/经停" }}</small
+            ><strong>{{
+              stop.nodeName ||
+              nodes.find(node => node.id === stop.nodeId)?.name ||
+              "请选择节点"
+            }}</strong
+            ><span>{{
+              formatDateTime(
+                stop.plannedArrivalTime == null ||
+                  stop.plannedArrivalTime === ""
+                  ? undefined
+                  : Number(stop.plannedArrivalTime)
+              )
+            }}</span>
+          </li>
+        </ol>
+      </section>
       <el-form label-width="110px" :disabled="busy || loading">
         <el-form-item label="运输组织方式"
           ><el-radio-group v-model="form.transportOrganizationType"
@@ -571,6 +647,82 @@ async function save() {
   font-size: 20px;
   color: var(--el-text-color-secondary);
   cursor: grab;
+}
+
+.allocation-preview {
+  padding: 20px;
+  margin-bottom: 24px;
+  background: var(--tms-soft);
+  border: 1px solid var(--tms-line);
+  border-radius: 14px;
+}
+
+.allocation-preview header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.allocation-preview h3 {
+  margin: 0 0 16px;
+}
+
+.allocation-preview header span,
+.preview-orders p {
+  font-size: 12px;
+  color: var(--tms-muted);
+}
+
+.preview-orders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.preview-orders article {
+  min-width: 210px;
+  padding: 14px;
+  background: var(--tms-panel);
+  border: 1px solid var(--tms-line);
+  border-radius: 10px;
+}
+
+.preview-orders strong {
+  font-size: 13px;
+}
+
+.preview-orders p {
+  margin: 8px 0;
+}
+
+.route-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0;
+  margin: 18px 0 0;
+  list-style: none;
+}
+
+.route-preview li {
+  display: grid;
+  gap: 5px;
+  min-width: 180px;
+  padding: 12px 16px;
+  background: var(--tms-panel);
+  border-left: 3px solid var(--el-color-primary);
+  border-radius: 4px 10px 10px 4px;
+}
+
+.route-preview small,
+.route-preview span {
+  font-size: 12px;
+  color: var(--tms-muted);
+}
+
+.route-preview strong {
+  font-size: 13px;
 }
 
 .node-role {

@@ -17,7 +17,6 @@ export interface Shift {
   templateId?: string;
   templateNo?: string;
   routePlanId?: string;
-  tempZone?: number;
   shiftDate: string;
   fromNodeName?: string;
   toNodeName?: string;
@@ -54,7 +53,6 @@ export interface ShiftTemplate {
   templateNo: string;
   templateName?: string;
   routePlanId?: string;
-  tempZone: number;
   isEnable: boolean;
   remark?: string;
   nodes: TemplateNode[];

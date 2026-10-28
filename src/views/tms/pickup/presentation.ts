@@ -39,7 +39,3 @@ export function pickupGoodsGroups(
     ).length
   };
 }
-
-export function createPalletCode(type: string) {
-  return `${type === "虚拟托盘" ? "V" : "P"}${crypto.randomUUID().replaceAll("-", "").toUpperCase()}`;
-}

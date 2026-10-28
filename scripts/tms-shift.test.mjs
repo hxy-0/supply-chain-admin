@@ -2,6 +2,28 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import ts from "typescript";
+import dayjs from "dayjs";
+
+test("seven-day navigation moves exactly seven days across year boundaries", async () => {
+  const page = await readFile(
+    new URL("../src/views/tms/dispatch/index.vue", import.meta.url),
+    "utf8"
+  );
+  const moveSource = page.match(
+    /function moveRange\(delta: number\) \{[\s\S]*?\n\}/
+  )[0];
+  const javascript = ts.transpileModule(moveSource, {}).outputText;
+  const anchor = { value: "2027-01-03" };
+  const move = new Function(
+    "anchor",
+    "dayjs",
+    `${javascript}; return moveRange;`
+  )(anchor, dayjs);
+  move(-7);
+  assert.equal(anchor.value, "2026-12-27");
+  move(7);
+  assert.equal(anchor.value, "2027-01-03");
+});
 const source = await readFile(
   new URL("../src/views/tms/dispatch/week.ts", import.meta.url),
   "utf8"
@@ -17,45 +39,48 @@ const javascript = ts
     'from "dayjs"',
     `from ${JSON.stringify(import.meta.resolve("dayjs"))}`
   );
-const { monday, weekDays, weekRows, validateStops } = await import(
+const { rangeDays, slotShifts, validateStops } = await import(
   `data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`
 );
 
-test("week runs Monday through Sunday across month and year boundaries", () => {
-  assert.equal(monday("2026-10-11"), "2026-10-05");
-  const days = weekDays("2027-01-01");
-  assert.equal(days[0].date, "2026-12-28");
-  assert.equal(days[6].date, "2027-01-03");
+test("seven-day range starts on the selected day across year boundaries", () => {
+  const days = rangeDays("2026-12-30");
+  assert.equal(days[0].date, "2026-12-30");
+  assert.equal(days[6].date, "2027-01-05");
   assert.deepEqual(
     days.map(day => day.label),
-    ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    ["周三", "周四", "周五", "周六", "周日", "周一", "周二"]
   );
-  assert.throws(() => monday("invalid"));
+  assert.throws(() => rangeDays("invalid"));
 });
-test("weekly table groups by actual configuration and retains multiple shifts and cancelled rows", () => {
-  const rows = weekRows([
-    {
-      shiftId: "2",
-      shiftNo: "B",
-      templateId: "T",
-      shiftDate: "2026-10-12",
-      status: 99,
-      planDepartTime: 200
-    },
-    {
-      shiftId: "1",
-      shiftNo: "A",
-      templateId: "T",
-      shiftDate: "2026-10-12",
-      status: 10,
-      planDepartTime: 100
-    },
-    { shiftId: "3", shiftNo: "C", shiftDate: "2026-10-12", status: 10 }
-  ]);
+test("time slots retain multiple shifts and cancelled rows on the same date", () => {
+  const rows = slotShifts(
+    [
+      {
+        shiftId: "2",
+        shiftNo: "B",
+        templateId: "T",
+        shiftDate: "2026-10-12",
+        status: 99,
+        startArriveTime: dayjs("2026-10-12T08:00").valueOf()
+      },
+      {
+        shiftId: "1",
+        shiftNo: "A",
+        templateId: "T",
+        shiftDate: "2026-10-12",
+        status: 10,
+        startArriveTime: dayjs("2026-10-12T09:00").valueOf()
+      },
+      { shiftId: "3", shiftNo: "C", shiftDate: "2026-10-12", status: 10 }
+    ],
+    "2026-10-12",
+    2
+  );
   assert.equal(rows.length, 2);
   assert.deepEqual(
-    rows[0].shifts.map(shift => shift.shiftId),
-    ["1", "2"]
+    rows.map(shift => shift.shiftId),
+    ["2", "1"]
   );
 });
 test("node edits keep chronology and reject missing or reversed times", () => {

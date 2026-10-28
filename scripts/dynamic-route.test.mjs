@@ -35,6 +35,53 @@ const initialize = new (async () => {}).constructor(
   "NProgress",
   normalizedIndex.slice(start, end)
 );
+
+test("directories never render a descendant component through partial path matching", async () => {
+  const source = await readFile(
+    new URL("../src/router/utils.ts", import.meta.url),
+    "utf8"
+  );
+  const start = source.indexOf("function addAsyncRoutes(");
+  const end = source.indexOf("/** 获取路由历史模式", start);
+  const body = ts.transpileModule(source.slice(start, end), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 }
+  }).outputText;
+  const panel = () => {};
+  const template = () => {};
+  const modules = {
+    "/src/views/tms/dispatch/components/PlanPanel.vue": panel,
+    "/src/views/tms/shift-template/index.vue": template
+  };
+  const resolve = new Function(
+    "modulesRoutes",
+    "IFrame",
+    `${body}; return addAsyncRoutes;`
+  )(modules, () => {});
+  const routes = [
+    {
+      path: "/tms",
+      meta: {},
+      children: [
+        {
+          path: "/tms/fulfillment",
+          meta: {},
+          children: [
+            {
+              path: "/tms/shift-template",
+              component: "tms/shift-template/index",
+              meta: {},
+              children: []
+            }
+          ]
+        }
+      ]
+    }
+  ];
+  resolve(routes);
+  assert.equal(routes[0].component, undefined);
+  assert.equal(routes[0].children[0].component, undefined);
+  assert.equal(routes[0].children[0].children[0].component, template);
+});
 test("direct dynamic-page navigation matches after menus load without unmatched warnings", async () => {
   const warnings = [];
   const originalWarn = console.warn;

@@ -30,16 +30,6 @@ export interface PickupContainer {
     pickedTime: number;
   }[];
 }
-export interface PickupConfirmCommand {
-  containerCode: string;
-  containerType: string;
-  weightKg?: Quantity;
-  volumeCm3?: Quantity;
-  items: { taskItemId: string; quantity: Quantity }[];
-}
-export interface PickupFinishCommand {
-  items: { taskItemId: string; shortageReason?: string }[];
-}
 async function request<T>(
   method: "get" | "post",
   path: string,
@@ -64,25 +54,5 @@ export const pickupExecutionApi = {
     request<PickupContainer>(
       "get",
       `/${encodeURIComponent(id)}/scan?containerCode=${encodeURIComponent(containerCode)}`
-    ),
-  confirm: (id: string, command: PickupConfirmCommand) =>
-    request<PickupContainer>(
-      "post",
-      `/${encodeURIComponent(id)}/confirm`,
-      command
-    ),
-  confirmVirtual: (
-    id: string,
-    command: {
-      unloadStopId: string;
-      items: { taskItemId: string; quantity: string }[];
-    }
-  ) =>
-    request<PickupContainer>(
-      "post",
-      `/${encodeURIComponent(id)}/virtual-pallet`,
-      command
-    ),
-  finish: (id: string, command: PickupFinishCommand) =>
-    request<PickupTask>("post", `/${encodeURIComponent(id)}/finish`, command)
+    )
 };

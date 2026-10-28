@@ -47,7 +47,6 @@ function empty(): ShiftTemplate {
   return {
     templateNo: "",
     templateName: "",
-    tempZone: 1,
     isEnable: true,
     nodes: [
       { _key: nextKey(), nodeId: "", arriveTime: "08:00", departTime: "08:00" },
@@ -361,16 +360,9 @@ async function save() {
           /></el-form-item>
         </div>
         <div class="config-fields">
-          <el-form-item label="温区"
-            ><el-select v-model="form.tempZone"
-              ><el-option
-                v-for="(name, index) in ['常温', '冷藏', '水产', '工业品']"
-                :key="name"
-                :label="name"
-                :value="index + 1" /></el-select></el-form-item
-          ><el-form-item label="启用"
-            ><el-switch v-model="form.isEnable"
-          /></el-form-item>
+          <el-form-item label="启用">
+            <el-switch v-model="form.isEnable" />
+          </el-form-item>
         </div>
         <div class="flex-bc mb-3">
           <h3>线路节点与每日时刻</h3>

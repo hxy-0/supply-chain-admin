@@ -87,6 +87,9 @@ globalThis.__workspaceTimeline = await component(
 const RouteWorkbench = await component(
   "../src/views/tms/dispatch/components/RouteWorkbench.vue"
 );
+const TripRouteProgress = await component(
+  "../src/views/tms/transport/components/TripRouteProgress.vue"
+);
 
 async function render(component, props) {
   const app = createSSRApp({ render: () => h(component, props) });
@@ -110,6 +113,34 @@ async function render(component, props) {
   }
   return renderToString(app);
 }
+
+test("trip progress preserves planned versus actual times without driver action controls", async () => {
+  const html = await render(TripRouteProgress, {
+    trip: {
+      stops: [
+        {
+          stopId: "S1",
+          nodeName: "始发仓",
+          status: "DEPARTED",
+          plannedArrivalTime: 1792886400000,
+          arrivedTime: 1792886460000
+        },
+        {
+          stopId: "S2",
+          nodeName: "目的仓",
+          status: "PENDING",
+          plannedArrivalTime: 1792890000000
+        }
+      ]
+    }
+  });
+  assert.ok(html.indexOf("始发仓") < html.indexOf("目的仓"));
+  assert.match(html, /计划到达/);
+  assert.match(html, /实际签到/);
+  assert.match(html, /待到站/);
+  assert.match(html, /已离站/);
+  assert.doesNotMatch(html, /<button|@click|确认装车|确认卸货/);
+});
 
 test("vehicle selection initially shows the first real vehicle and preserves capacity units", async () => {
   const html = await render(VehicleWorkbench, {

@@ -39,6 +39,48 @@ export function availablePickupQuantity(
   return remaining > 0n ? String(remaining) : "0";
 }
 
+export function allocationPreview(
+  orders: TmsOrder[],
+  quantities: Record<string, string>
+) {
+  return orders.map(order => {
+    let selectedLines = 0;
+    let remainingLines = 0;
+    let invalidLines = 0;
+    let allocatableLines = 0;
+    for (const item of order.items) {
+      const remaining = BigInt(
+        availablePickupQuantity(item.orderedQuantity, item.plannedQuantity)
+      );
+      const requested = item.orderItemId
+        ? quantities[item.orderItemId]?.trim()
+        : "";
+      const amount =
+        requested && validQuantity(requested) ? BigInt(requested) : 0n;
+      if (requested && (!validQuantity(requested) || amount > remaining)) {
+        invalidLines++;
+      }
+      if (amount > 0n) {
+        selectedLines++;
+      }
+      if (remaining > 0n) {
+        allocatableLines++;
+      }
+      if (remaining > amount) {
+        remainingLines++;
+      }
+    }
+    return {
+      orderId: order.orderId,
+      orderNo: order.orderNo,
+      selectedLines,
+      remainingLines,
+      invalidLines,
+      allocatableLines
+    };
+  });
+}
+
 export function pickupAllocationError(
   ordered: number | string,
   planned: number | string | undefined,

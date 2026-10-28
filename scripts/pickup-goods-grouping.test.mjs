@@ -9,7 +9,7 @@ const source = await readFile(
 const code = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext }
 }).outputText;
-const { pickupGoodsGroups, createPalletCode } = await import(
+const { pickupGoodsGroups } = await import(
   "data:text/javascript;base64," + Buffer.from(code).toString("base64")
 );
 const task = {
@@ -74,10 +74,4 @@ test("planned and actual stay on one product row despite multiple actual batches
     ["99999999999999", "3"]
   );
   assert.equal(result.orders[2].planned[0].allocations.length, 0);
-});
-
-test("virtual pallet codes start with V and physical codes use P", () => {
-  assert.match(createPalletCode("虚拟托盘"), /^V[A-F0-9]{32}$/);
-  assert.match(createPalletCode("托盘"), /^P[A-F0-9]{32}$/);
-  assert.notEqual(createPalletCode("虚拟托盘"), createPalletCode("虚拟托盘"));
 });

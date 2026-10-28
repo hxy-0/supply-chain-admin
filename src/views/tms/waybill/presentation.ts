@@ -16,13 +16,6 @@ export const statusTagTypes: Record<number, string> = {
   99: "info"
 };
 
-export const tempLabels: Record<number, string> = {
-  1: "常温",
-  2: "冷藏",
-  3: "水产",
-  4: "工业品"
-};
-
 export const pickupTypeLabels: Record<number, string> = {
   1: "上门取件",
   2: "自送驿站"
