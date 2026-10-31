@@ -121,7 +121,7 @@ async function lookup() {
         ></el-input
       >
       <p v-if="pallet">
-        本批整板商品，包含板内其他通知单的来源；实际作业在小程序按托盘完成。
+        本批整板商品，包含板内其他通知单的来源；实际作业在小程序按商品逐次上架，通知单由系统自动完成。
       </p>
       <el-table v-if="pallet" :data="pallet.items">
         <el-table-column prop="inboundNo" label="入库通知单" />
