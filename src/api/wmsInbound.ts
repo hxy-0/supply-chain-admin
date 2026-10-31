@@ -45,10 +45,17 @@ export interface PutawayDetail {
   createTime?: number;
 }
 export interface InboundPallet {
+  warehouseId: Id;
+  arrivalId: Id;
+  registered: boolean;
   originNodeId?: string;
   destinationNodeId: string;
   palletCode: string;
   items: {
+    inboundId: Id;
+    inboundNo: string;
+    sourceNo?: string;
+    sourceLineNo: string;
     skuId: Id;
     skuCode?: string;
     skuName?: string;
@@ -87,8 +94,9 @@ export const inboundApi = {
   cancel: (id: Id) => request<void>("delete", `/cancel/${id}`),
   detail: (id: Id) => request<InboundOrder>("get", `/${id}`),
   putaways: (id: Id) => request<PutawayDetail[]>("get", `/${id}/putaways`),
-  pallet: (id: Id, arrivalId: Id, palletCode: string) =>
-    request<InboundPallet>("get", `/${id}/pallet`, undefined, {
+  pallet: (warehouseId: Id, arrivalId: Id, palletCode: string) =>
+    request<InboundPallet>("get", "/pallet", undefined, {
+      warehouseId,
       arrivalId,
       palletCode
     })

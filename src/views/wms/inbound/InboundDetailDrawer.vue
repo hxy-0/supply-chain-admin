@@ -61,7 +61,7 @@ async function lookup() {
   pallet.value = undefined;
   try {
     pallet.value = await inboundApi.pallet(
-      props.order.id,
+      props.order.warehouseId,
       arrivalId.value,
       palletCode.value
     );
@@ -120,7 +120,13 @@ async function lookup() {
           ><el-button @click="lookup">查询</el-button></template
         ></el-input
       >
+      <p v-if="pallet">
+        本批整板商品，包含板内其他通知单的来源；实际作业在小程序按托盘完成。
+      </p>
       <el-table v-if="pallet" :data="pallet.items">
+        <el-table-column prop="inboundNo" label="入库通知单" />
+        <el-table-column prop="sourceNo" label="来源单号" />
+        <el-table-column prop="sourceLineNo" label="来源行" />
         <el-table-column prop="skuCode" label="SKU" /><el-table-column
           prop="skuName"
           label="商品"
