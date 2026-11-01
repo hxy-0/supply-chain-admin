@@ -1,10 +1,11 @@
+# syntax=docker/dockerfile:1
 FROM node:24-alpine AS build-stage
 
 WORKDIR /app
 RUN npm install --global pnpm@12.9.1
 
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm build
