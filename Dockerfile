@@ -1,10 +1,7 @@
-FROM node:20-alpine as build-stage
+FROM node:24-alpine AS build-stage
 
 WORKDIR /app
-RUN corepack enable
-RUN corepack prepare pnpm@latest --activate
-
-RUN npm config set registry https://registry.npmmirror.com
+RUN npm install --global pnpm@12.9.1
 
 COPY .npmrc package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
@@ -12,9 +9,11 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM nginx:stable-alpine as production-stage
+FROM nginx:stable-alpine AS production-stage
 
 COPY --from=build-stage /app/dist /usr/share/nginx/html
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+RUN nginx -t
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]

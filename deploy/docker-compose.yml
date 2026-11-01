@@ -1,0 +1,22 @@
+name: supply-chain-admin-prod
+services:
+  admin:
+    image: ${APP_IMAGE:?APP_IMAGE is required}
+    container_name: supply-chain-admin
+    restart: unless-stopped
+    ports:
+      - '192.168.9.102:18082:80'
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1/healthz']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
