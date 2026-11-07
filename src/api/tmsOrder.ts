@@ -7,6 +7,9 @@ export type Quantity = number | string;
 export interface OrderItem {
   orderItemId?: string;
   lineNo?: number;
+  omsOrderId?: string;
+  omsOrderNo?: string;
+  sourceOutboundId?: string;
   goodsSource: "MANUAL" | "SKU";
   skuId?: string | number;
   skuCode?: string;
@@ -45,9 +48,24 @@ export interface OrderCommand extends PickupPlanCommand {
   version?: number;
   items: OrderItem[];
 }
+export interface OrderPallet {
+  containerId: string;
+  containerCode: string;
+  status: string;
+  plannedPickupTaskId?: string;
+  handoverConfirmed: boolean;
+  quantities: Record<string, number>;
+}
 export interface TmsOrder extends OrderCommand {
+  pallets: OrderPallet[];
   orderId: string;
   orderNo: string;
+  omsOrderId?: string;
+  managed: boolean;
+  sourceOrderNo?: string;
+  sourceShipmentId?: string;
+  sourceShipmentNo?: string;
+  shipmentConfirmed?: boolean;
   status: OrderStatus;
   destinationNodeName?: string;
   pickupNodeName?: string;

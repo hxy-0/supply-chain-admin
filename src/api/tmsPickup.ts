@@ -9,6 +9,7 @@ export interface TripRouteStop {
   plannedDepartureTime?: number | string;
 }
 export interface GenerateTripCommand {
+  palletCodes?: string[];
   orderIds: string[];
   carrierId: string;
   items: { orderItemId: string; plannedQuantity: Quantity }[];

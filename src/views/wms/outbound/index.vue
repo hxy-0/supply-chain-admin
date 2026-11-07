@@ -77,7 +77,7 @@ onMounted(() => load());
     <header>
       <div>
         <h2>出库管理</h2>
-        <p>按单摘果、商品拣货、分板打包，全部打板后发运。</p>
+        <p>按单拣货、分板打包，按批次备妥下发运输，交接后扣减库存。</p>
       </div>
       <el-button type="primary" @click="creating = true">创建出库单</el-button>
     </header>

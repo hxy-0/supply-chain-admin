@@ -9,6 +9,7 @@ export interface OutboundItem {
   quantity: number;
   pickedQuantity: number;
   packedQuantity: number;
+  shippedQuantity: number;
 }
 export interface OutboundPallet {
   containerId: string;
@@ -21,6 +22,15 @@ export interface OutboundPallet {
     goodsName: string;
     quantity: number;
   }[];
+}
+export interface OutboundShipment {
+  shipmentId: Id;
+  shipmentNo: string;
+  status: "READY" | "PARTIALLY_SHIPPED" | "SHIPPED";
+  createTime: number;
+  shippedTime?: number;
+  palletCodes: string[];
+  shippedPalletCodes: string[];
 }
 export interface OutboundOrder {
   id: Id;
@@ -41,6 +51,8 @@ export interface OutboundOrder {
     quantity: number;
   }[];
   pallets: OutboundPallet[];
+  shipments: OutboundShipment[];
+  omsOrderId?: string;
 }
 export interface OutboundCreate {
   warehouseId: Id;
@@ -55,7 +67,8 @@ export const outboundStatuses = [
   "打板中",
   "已打板",
   "已发运",
-  "已取消"
+  "已取消",
+  "部分发运"
 ];
 async function request<T>(
   method: "get" | "post" | "delete",

@@ -295,6 +295,21 @@ onMounted(load);
             }}</el-tag></template
           ></el-table-column
         >
+        <el-table-column label="业务来源" min-width="200">
+          <template #default="{ row }">
+            <div>{{ row.sourceOrderNo || "直接运输订单" }}</div>
+            <div v-if="row.sourceShipmentNo">
+              发运批次 {{ row.sourceShipmentNo }}
+            </div>
+            <el-tag
+              v-if="row.sourceShipmentId"
+              :type="row.shipmentConfirmed ? 'success' : 'warning'"
+              >{{
+                row.shipmentConfirmed ? "全部卡板已交接" : "按本次卡板核对交接"
+              }}</el-tag
+            >
+          </template>
+        </el-table-column>
         <el-table-column prop="senderName" label="发货人" min-width="120" />
         <el-table-column label="运输线路" min-width="250"
           ><template #default="{ row }"
@@ -336,7 +351,7 @@ onMounted(load);
               >查看</el-button
             >
             <el-button
-              v-if="hasPerms('tms:order:edit')"
+              v-if="hasPerms('tms:order:edit') && !row.managed"
               link
               type="primary"
               :disabled="!active(row as TmsOrder) || detailLoading"
@@ -344,7 +359,7 @@ onMounted(load);
               >编辑</el-button
             >
             <el-button
-              v-if="hasPerms('tms:order:cancel')"
+              v-if="hasPerms('tms:order:cancel') && !row.managed"
               link
               type="danger"
               :disabled="!active(row as TmsOrder) || !!actionId"

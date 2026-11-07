@@ -20,7 +20,8 @@ import {
   sortedPickupOrders,
   buildOrderTripRoute,
   tripRouteError,
-  allocationPreview
+  allocationPreview,
+  palletAllocation
 } from "../presentation";
 
 const open = defineModel<boolean>({ required: true });
@@ -37,6 +38,16 @@ const items = computed(() =>
 const carriers = ref<Carrier[]>([]);
 const nodes = ref<LogisticNode[]>([]);
 const quantities = ref<Record<string, string>>({});
+const selectedPalletCodes = ref<string[]>([]);
+function applyPalletSelection() {
+  try {
+    const result = palletAllocation(orders.value, selectedPalletCodes.value);
+    quantities.value = { ...quantities.value, ...result.quantities };
+    packageCounts.value = { ...packageCounts.value, ...result.packageCounts };
+  } catch (reason) {
+    error(reason);
+  }
+}
 const preview = computed(() =>
   allocationPreview(orders.value, quantities.value)
 );
@@ -94,6 +105,7 @@ watch(open, async value => {
   }
   form.value = empty();
   quantities.value = {};
+  selectedPalletCodes.value = [];
   packageCounts.value = {};
   orders.value = [];
   nodes.value = [];
@@ -119,6 +131,7 @@ watch(open, async value => {
       );
       if (remaining !== "0") quantities.value[item.orderItemId] = remaining;
     }
+    applyPalletSelection();
   } catch (reason) {
     if (current === loadVersion) {
       error(reason);
@@ -275,6 +288,7 @@ async function save() {
       ...form.value,
       orderIds: props.orderIds,
       items: requested,
+      palletCodes: [...selectedPalletCodes.value],
       orderPickups: orders.value.map(order => ({
         orderId: order.orderId,
         plannedPackageCount: packageCounts.value[order.orderId]!
@@ -314,7 +328,7 @@ async function save() {
   >
     <div v-loading="loading">
       <el-alert
-        :title="`已选择 ${orders.length} 个订单，按本次数量合到一趟车；需要拆车时仅填写本次计划量，余量继续排车。`"
+        :title="`已选择 ${orders.length} 个订单；普通运输填写本次数量；调拨选择本车原卡板，数量和卡板数自动计算，剩余卡板可另车安排。`"
         type="info"
         :closable="false"
         class="mb-4"
@@ -466,10 +480,17 @@ async function save() {
                 order.receiverName
               }}</span
             ><span>订单计划包裹数：{{ order.plannedPackageCount }}</span>
+            <span v-if="order.sourceShipmentId"
+              >调拨批次
+              {{
+                order.sourceShipmentNo
+              }}：选择本车原卡板，剩余卡板可另车安排</span
+            >
             <label class="flex items-center gap-2">
               本次计划提货包裹数
               <el-input-number
                 v-model="packageCounts[order.orderId]"
+                :disabled="!!order.sourceShipmentId"
                 :min="1"
                 :max="2147483647"
                 :precision="0"
@@ -479,6 +500,31 @@ async function save() {
               />
             </label>
           </div>
+          <el-checkbox-group
+            v-if="order.sourceShipmentId"
+            v-model="selectedPalletCodes"
+            @change="applyPalletSelection"
+          >
+            <el-checkbox
+              v-for="pallet in order.pallets"
+              :key="pallet.containerId"
+              :value="pallet.containerCode"
+              :disabled="
+                pallet.status !== 'PACKED' || !!pallet.plannedPickupTaskId
+              "
+            >
+              {{ pallet.containerCode }} ·
+              {{
+                pallet.plannedPickupTaskId
+                  ? "已排车"
+                  : pallet.status !== "PACKED"
+                    ? "已提货"
+                    : pallet.handoverConfirmed
+                      ? "已交接"
+                      : "待源仓交接"
+              }}
+            </el-checkbox>
+          </el-checkbox-group>
           <el-table :data="order.items" border>
             <el-table-column prop="goodsName" label="商品" min-width="200" />
             <el-table-column prop="unit" label="单位" width="80" />
@@ -498,6 +544,7 @@ async function save() {
                   v-model="quantities[row.orderItemId]"
                   inputmode="numeric"
                   :disabled="
+                    !!order.sourceShipmentId ||
                     availablePickupQuantity(
                       row.orderedQuantity,
                       row.plannedQuantity

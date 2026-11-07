@@ -326,6 +326,7 @@ async function save() {
         >添加商品行</el-button
       >
       <el-table :data="form.items" border>
+        <el-table-column prop="omsOrderNo" label="来源订单" min-width="180" />
         <el-table-column label="来源" width="110"
           ><template #default="{ row }">
             <span v-if="readonly">{{
@@ -428,6 +429,7 @@ async function save() {
         历史少备仅记录任务履约历史，不等于当前差额。签到后仍须卸货，最终仓卸货才计完成。
       </p>
       <el-table :data="form.items" border>
+        <el-table-column prop="omsOrderNo" label="来源订单" min-width="180" />
         <el-table-column prop="goodsName" label="商品" min-width="160" fixed />
         <el-table-column prop="unit" label="单位" width="70" />
         <el-table-column

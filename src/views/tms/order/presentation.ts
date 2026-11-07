@@ -193,3 +193,29 @@ export function tripRouteError(
   )
     return "线路必须保留全部提货点及收货点，并以收货点结束";
 }
+
+/** 调拨分车以原卡板为单位，商品行及包裹数随所选卡板计算。 */
+export function palletAllocation(orders: TmsOrder[], codes: string[]) {
+  const selected = new Set(codes);
+  const quantities: Record<string, string> = {};
+  const packageCounts: Record<string, number> = {};
+  for (const order of orders.filter(order => order.sourceShipmentId)) {
+    packageCounts[order.orderId] = 0;
+    for (const item of order.items)
+      if (item.orderItemId) quantities[item.orderItemId] = "";
+    for (const pallet of order.pallets) {
+      if (!selected.has(pallet.containerCode)) continue;
+      if (pallet.status !== "PACKED" || pallet.plannedPickupTaskId)
+        throw new Error("所选卡板已经排车或已提货，请刷新运输需求");
+      packageCounts[order.orderId]++;
+      for (const [lineId, quantity] of Object.entries(pallet.quantities)) {
+        if (!Number.isSafeInteger(quantity) || quantity <= 0)
+          throw new Error("卡板来源数量无效");
+        quantities[lineId] = String(
+          BigInt(quantities[lineId] || "0") + BigInt(quantity)
+        );
+      }
+    }
+  }
+  return { quantities, packageCounts };
+}
