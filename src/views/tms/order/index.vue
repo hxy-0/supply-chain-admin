@@ -301,13 +301,6 @@ onMounted(load);
             <div v-if="row.sourceShipmentNo">
               发运批次 {{ row.sourceShipmentNo }}
             </div>
-            <el-tag
-              v-if="row.sourceShipmentId"
-              :type="row.shipmentConfirmed ? 'success' : 'warning'"
-              >{{
-                row.shipmentConfirmed ? "全部卡板已交接" : "按本次卡板核对交接"
-              }}</el-tag
-            >
           </template>
         </el-table-column>
         <el-table-column prop="senderName" label="发货人" min-width="120" />

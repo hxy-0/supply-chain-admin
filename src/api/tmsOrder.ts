@@ -65,7 +65,6 @@ export interface TmsOrder extends OrderCommand {
   sourceOrderNo?: string;
   sourceShipmentId?: string;
   sourceShipmentNo?: string;
-  shipmentConfirmed?: boolean;
   status: OrderStatus;
   destinationNodeName?: string;
   pickupNodeName?: string;
