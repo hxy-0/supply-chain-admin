@@ -24,11 +24,34 @@ const statuses: Record<string, string> = {
   PUTAWAY: "上架中"
 };
 const transfer = computed(() => props.order?.orderType === "TRANSFER");
+const stepIndex: Record<string, number> = {
+  DRAFT: 0,
+  RELEASED: 1,
+  FULFILLING: 2,
+  COMPLETED: 3,
+  CANCELLED: 1
+};
+const steps = computed(() => {
+  const order = props.order;
+  return {
+    active: order ? (stepIndex[order.status] ?? 0) : 0,
+    error: order?.status === "CANCELLED",
+    items: ["草稿", "已释放", "履约中", "已完成"]
+  };
+});
 </script>
 
 <template>
   <el-drawer v-model="visible" title="订单详情" size="min(1100px, 95vw)">
     <template v-if="order">
+      <el-steps
+        :active="steps.active"
+        :process-status="steps.error ? 'error' : 'process'"
+        align-center
+        class="order-steps"
+      >
+        <el-step v-for="title in steps.items" :key="title" :title="title" />
+      </el-steps>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="订单号">{{
           order.orderNo
@@ -60,6 +83,9 @@ const transfer = computed(() => props.order?.orderType === "TRANSFER");
         }}</el-descriptions-item>
         <el-descriptions-item label="计划到货">{{
           formatDateTime(order.expectDeliveryTime)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="计划包裹数">{{
+          order.plannedPackageCount
         }}</el-descriptions-item>
         <el-descriptions-item label="释放时间">{{
           formatDateTime(order.releasedTime)
@@ -133,6 +159,10 @@ const transfer = computed(() => props.order?.orderType === "TRANSFER");
 </template>
 
 <style scoped>
+.order-steps {
+  margin-bottom: 24px;
+}
+
 .progress-note {
   margin: 20px 0 12px;
   color: var(--el-text-color-secondary);

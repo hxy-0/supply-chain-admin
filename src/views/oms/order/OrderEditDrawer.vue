@@ -222,6 +222,7 @@ async function save() {
     @open="opened"
   >
     <el-form label-width="105px" :disabled="busy" @submit.prevent="save">
+      <p class="section-title">基础信息</p>
       <el-form-item v-if="!transfer" label="供应商" required
         ><el-input v-model="form.supplierName" maxlength="128"
       /></el-form-item>
@@ -300,32 +301,53 @@ async function save() {
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="发货联系人" required
-        ><el-input v-model="form.senderName" maxlength="100"
-      /></el-form-item>
-      <el-form-item label="发货电话" required
-        ><el-input v-model="form.senderPhone" maxlength="32"
-      /></el-form-item>
-      <el-form-item label="收货联系人" required
-        ><el-input v-model="form.receiverName" maxlength="64"
-      /></el-form-item>
-      <el-form-item label="收货电话" required
-        ><el-input v-model="form.receiverPhone" maxlength="32"
-      /></el-form-item>
-      <el-form-item label="计划包裹数" required
-        ><el-input-number
-          v-model="form.plannedPackageCount"
-          :min="1"
-          :max="2147483647"
-          :precision="0"
-      /></el-form-item>
-      <el-form-item label="计划提货" required
-        ><el-date-picker
-          v-model="form.expectPickupTime"
-          type="datetime"
-          format="YYYY-MM-DD HH:mm:ss"
-          value-format="x"
-      /></el-form-item>
+      <p class="section-title">发货与收货</p>
+      <el-row :gutter="12">
+        <el-col :span="12"
+          ><el-form-item label="发货联系人" required
+            ><el-input
+              v-model="form.senderName"
+              maxlength="100" /></el-form-item
+        ></el-col>
+        <el-col :span="12"
+          ><el-form-item label="发货电话" required
+            ><el-input
+              v-model="form.senderPhone"
+              maxlength="32" /></el-form-item
+        ></el-col>
+      </el-row>
+      <el-row :gutter="12">
+        <el-col :span="12"
+          ><el-form-item label="收货联系人" required
+            ><el-input
+              v-model="form.receiverName"
+              maxlength="64" /></el-form-item
+        ></el-col>
+        <el-col :span="12"
+          ><el-form-item label="收货电话" required
+            ><el-input
+              v-model="form.receiverPhone"
+              maxlength="32" /></el-form-item
+        ></el-col>
+      </el-row>
+      <el-row :gutter="12">
+        <el-col :span="12"
+          ><el-form-item label="计划包裹数" required
+            ><el-input-number
+              v-model="form.plannedPackageCount"
+              :min="1"
+              :max="2147483647"
+              :precision="0" /></el-form-item
+        ></el-col>
+        <el-col :span="12"
+          ><el-form-item label="计划提货" required
+            ><el-date-picker
+              v-model="form.expectPickupTime"
+              type="datetime"
+              format="YYYY-MM-DD HH:mm:ss"
+              value-format="x" /></el-form-item
+        ></el-col>
+      </el-row>
       <el-form-item label="计划到货" required
         ><el-date-picker
           v-model="form.expectDeliveryTime"
@@ -340,6 +362,7 @@ async function save() {
           maxlength="512"
           show-word-limit
       /></el-form-item>
+      <p class="section-title">商品明细</p>
       <el-form-item label="商品" required
         ><el-select
           v-model="skuId"
@@ -391,3 +414,13 @@ async function save() {
     >
   </el-drawer>
 </template>
+
+<style scoped>
+.section-title {
+  padding-left: 8px;
+  margin: 4px 0 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  border-left: 3px solid var(--el-color-primary);
+}
+</style>
