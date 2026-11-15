@@ -1,7 +1,7 @@
 # 管理端生产部署
 
 Jenkins 任务 `supply-chain-admin-prod` 从公开 GitHub 仓库 `hxy-0/supply-chain-admin` 的 main 分支读取 Jenkinsfile，每两分钟检查更新。
-使用 Node 24、pnpm 12.9.1 构建，Nginx 提供静态文件和 API 代理，不启动 Vite 开发服务器。
+使用 Node 24、pnpm 12.9.1 构建，Nginx 提供静态文件和 API 代理，不启动 Vite 开发服务器。构建复用 Jenkins 主机已有的基础镜像；Docker Hub 镜像 DNS 恢复后应主动更新基础镜像，再恢复流水线 `--pull`。
 前端构建只包含浏览器资源，禁止在 VITE_* 变量、源代码或镜像中存放公众号/小程序 AppSecret。
 
 宿主机应用目录：`/opt/1panel/apps/supply-chain-admin/supply-chain-admin/`。

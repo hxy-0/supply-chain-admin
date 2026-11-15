@@ -12,7 +12,10 @@ pipeline {
     }
     stages {
         stage('Build') {
-            steps { sh 'docker build --pull --progress=plain -t supply-chain-admin:$GIT_COMMIT .' }
+            steps {
+                // shortcut: reuse cached base images during registry DNS outages; restore --pull when registry access is reliable.
+                sh 'docker build --progress=plain -t supply-chain-admin:$GIT_COMMIT .'
+            }
         }
         stage('Deploy') {
             steps { sh 'bash deploy/publish.sh supply-chain-admin:$GIT_COMMIT' }
