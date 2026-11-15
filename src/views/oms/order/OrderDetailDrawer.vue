@@ -1,10 +1,20 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { orderStatuses, type OmsOrder } from "@/api/oms";
+import {
+  orderStatuses,
+  type OmsOrder,
+  type PurchaseFulfillment,
+  type PurchaseExecution
+} from "@/api/oms";
 import { formatDateTime } from "@/utils/date";
 const visible = defineModel<boolean>({ default: false });
 const props = defineProps<{ order?: OmsOrder }>();
-defineEmits<{ refresh: [] }>();
+defineEmits<{
+  refresh: [];
+  createExecution: [fulfillment: PurchaseFulfillment];
+  startExecution: [execution: PurchaseExecution];
+  cancelExecution: [execution: PurchaseExecution];
+}>();
 const documentLabels = {
   OUTBOUND: "源仓出库",
   SHIPMENT: "发运批次",
@@ -17,11 +27,26 @@ const statuses: Record<string, string> = {
   PARTIALLY_SHIPPED: "部分发运",
   SHIPPED: "已发运",
   PENDING: "待调度",
+  EXECUTING: "执行中",
   DELIVERING: "分批交付中",
+  DELIVERED: "已到仓",
   COMPLETED: "已完成",
+  CANCELLED: "已取消",
   RECEIVING: "收货中",
   READY_PUTAWAY: "待上架",
   PUTAWAY: "上架中"
+};
+const purchaseFulfillmentStatuses: Record<string, string> = {
+  PENDING: "待执行",
+  EXECUTING: "执行中",
+  COMPLETED: "已完成",
+  CANCELLED: "已取消"
+};
+const purchaseExecutionStatuses: Record<string, string> = {
+  CREATED: "待开始",
+  EXECUTING: "执行中",
+  COMPLETED: "已完成",
+  CANCELLED: "已取消"
 };
 const transfer = computed(() => props.order?.orderType === "TRANSFER");
 const stepIndex: Record<string, number> = {
@@ -101,13 +126,19 @@ const steps = computed(() => {
         }}</el-descriptions-item>
       </el-descriptions>
       <p class="progress-note">
-        按来源单据累计履约；分批到仓分别收货、上架，全部需求完成上架后订单完成。
+        按来源单据累计履约；分批到仓分别收货、上架，全部需求完成上架或取消后订单完成。
       </p>
       <el-table :data="order.items" row-key="orderItemId" border>
         <el-table-column prop="skuCode" label="SKU" min-width="140" />
         <el-table-column prop="goodsName" label="商品" min-width="140" />
         <el-table-column prop="unit" label="单位" width="65" />
         <el-table-column prop="quantity" label="需求" width="90" />
+        <el-table-column
+          v-if="!transfer"
+          prop="cancelledQuantity"
+          label="已取消"
+          width="90"
+        />
         <el-table-column
           v-if="transfer"
           prop="shippedQuantity"
@@ -122,13 +153,104 @@ const steps = computed(() => {
         <el-table-column prop="receivedQuantity" label="已收货" width="90" />
         <el-table-column prop="putawayQuantity" label="已上架" width="90" />
       </el-table>
+      <template v-if="order.orderType === 'PURCHASE'">
+        <h3 class="documents-title">采购履约链路</h3>
+        <el-empty
+          v-if="!order.purchaseFulfillments.length"
+          description="释放采购需求后生成履约安排"
+          :image-size="60"
+        />
+        <el-card
+          v-for="fulfillment in order.purchaseFulfillments"
+          :key="fulfillment.fulfillmentId"
+          shadow="never"
+          class="purchase-fulfillment"
+        >
+          <template #header>
+            <div class="purchase-header">
+              <span>
+                履约单 {{ fulfillment.fulfillmentNo }} ·
+                {{ purchaseFulfillmentStatuses[fulfillment.status] }}
+              </span>
+              <el-button
+                v-if="fulfillment.status === 'PENDING'"
+                type="primary"
+                size="small"
+                @click="$emit('createExecution', fulfillment)"
+                >生成执行单</el-button
+              >
+            </div>
+          </template>
+          <p class="progress-note">
+            {{ fulfillment.pickupNodeName }} →
+            {{ fulfillment.destinationNodeName }} · 提货
+            {{ formatDateTime(fulfillment.expectPickupTime) }} · 到货
+            {{ formatDateTime(fulfillment.expectDeliveryTime) }}
+          </p>
+          <el-table
+            :data="fulfillment.items"
+            row-key="fulfillmentItemId"
+            border
+          >
+            <el-table-column prop="skuCode" label="SKU" min-width="130" />
+            <el-table-column prop="goodsName" label="商品" min-width="130" />
+            <el-table-column prop="unit" label="单位" width="70" />
+            <el-table-column prop="quantity" label="计划数量" width="100" />
+          </el-table>
+          <el-table
+            v-if="fulfillment.executions.length"
+            :data="fulfillment.executions"
+            row-key="executionId"
+            border
+            class="purchase-executions"
+          >
+            <el-table-column
+              prop="executionNo"
+              label="执行单号"
+              min-width="180"
+            />
+            <el-table-column label="执行状态" width="110">
+              <template #default="{ row }">
+                {{ purchaseExecutionStatuses[row.status] || row.status }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="170" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  v-if="row.status === 'CREATED'"
+                  link
+                  type="primary"
+                  @click="$emit('startExecution', row as PurchaseExecution)"
+                  >开始执行</el-button
+                >
+                <el-button
+                  v-if="row.status === 'CREATED'"
+                  link
+                  type="danger"
+                  @click="$emit('cancelExecution', row as PurchaseExecution)"
+                  >取消</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </template>
       <h3 class="documents-title">履约单据</h3>
       <el-empty
         v-if="!order.documents.length"
         :description="
           order.status === 'DRAFT' || order.status === 'CANCELLED'
             ? '订单尚未下发履约需求'
-            : '执行单据生成中，可稍后刷新'
+            : order.orderType === 'PURCHASE' &&
+                order.purchaseFulfillments.every(fulfillment =>
+                  fulfillment.executions.every(
+                    execution =>
+                      execution.status !== 'EXECUTING' &&
+                      execution.status !== 'COMPLETED'
+                  )
+                )
+              ? '采购执行单开始后才会向下游下发'
+              : '下游单据生成中，可稍后刷新'
         "
         :image-size="60"
       />
@@ -170,5 +292,19 @@ const steps = computed(() => {
 
 .documents-title {
   margin: 24px 0 12px;
+}
+
+.purchase-fulfillment {
+  margin-bottom: 12px;
+}
+
+.purchase-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.purchase-executions {
+  margin-top: 16px;
 }
 </style>

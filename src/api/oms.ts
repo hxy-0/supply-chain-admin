@@ -22,6 +22,7 @@ export interface OrderItem extends OrderItemInput {
   skuCode: string;
   goodsName: string;
   specText?: string;
+  cancelledQuantity: number;
   shippedQuantity: number;
   deliveredQuantity: number;
   receivedQuantity: number;
@@ -51,6 +52,42 @@ export interface OrderDocument {
   status: string;
   updateTime: number;
 }
+export interface PurchaseExecution {
+  executionId: string;
+  executionNo: string;
+  status: "CREATED" | "EXECUTING" | "COMPLETED" | "CANCELLED";
+  cancelReason?: string;
+  version: number;
+  createTime: number;
+  startTime?: number;
+  completedTime?: number;
+  items: PurchaseExecutionItem[];
+}
+export interface PurchaseFulfillmentItem {
+  fulfillmentItemId: string;
+  orderItemId: string;
+  skuId: Id;
+  skuCode: string;
+  goodsName: string;
+  specText?: string;
+  unit: string;
+  quantity: number;
+}
+export interface PurchaseExecutionItem extends PurchaseFulfillmentItem {
+  executionItemId: string;
+}
+export interface PurchaseFulfillment {
+  fulfillmentId: string;
+  fulfillmentNo: string;
+  status: "PENDING" | "EXECUTING" | "COMPLETED" | "CANCELLED";
+  cancelReason?: string;
+  version: number;
+  createTime: number;
+  expectPickupTime: number;
+  expectDeliveryTime: number;
+  items: PurchaseFulfillmentItem[];
+  executions: PurchaseExecution[];
+}
 export interface OmsOrder extends OrderInput {
   orderId: string;
   orderNo: string;
@@ -67,6 +104,7 @@ export interface OmsOrder extends OrderInput {
   completedTime?: number;
   items: OrderItem[];
   documents: OrderDocument[];
+  purchaseFulfillments: PurchaseFulfillment[];
 }
 async function request<T>(method: "get" | "post", path: string, data?: object) {
   const response = await http.request<Result<T>>(
@@ -88,6 +126,29 @@ export const omsApi = {
     request<OmsOrder>("post", `/${order.orderId}/release`, {
       version: order.version
     }),
+  createPurchaseExecution: (fulfillment: PurchaseFulfillment) =>
+    request<OmsOrder>(
+      "post",
+      `/purchase-fulfillments/${fulfillment.fulfillmentId}/executions`,
+      { version: fulfillment.version }
+    ),
+  startPurchaseExecution: (execution: PurchaseExecution) =>
+    request<OmsOrder>(
+      "post",
+      `/purchase-executions/${execution.executionId}/start`,
+      {
+        version: execution.version
+      }
+    ),
+  cancelPurchaseExecution: (execution: PurchaseExecution, reason: string) =>
+    request<OmsOrder>(
+      "post",
+      `/purchase-executions/${execution.executionId}/cancel`,
+      {
+        version: execution.version,
+        reason
+      }
+    ),
   cancel: (order: OmsOrder, reason: string) =>
     request<OmsOrder>("post", `/${order.orderId}/cancel`, {
       version: order.version,

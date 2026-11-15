@@ -6,7 +6,9 @@ import {
   omsApi,
   orderStatuses,
   type OmsOrder,
-  type OrderStatus
+  type OrderStatus,
+  type PurchaseFulfillment,
+  type PurchaseExecution
 } from "@/api/oms";
 import { warehouseApi, type Warehouse } from "@/api/wms";
 import { formatDateTime } from "@/utils/date";
@@ -120,14 +122,68 @@ async function release(order: OmsOrder) {
   try {
     await ElMessageBox.confirm(
       orderType.value === "PURCHASE"
-        ? "释放后将安排提货运输，需求不可再修改。"
+        ? "释放后将生成采购履约安排，不会下发运输；需求不可再修改。"
         : "释放后将向源仓下发出库需求，需求不可再修改。",
       "释放订单",
       { type: "warning" }
     );
     acting.value = order.orderId;
     await omsApi.release(order);
-    ElMessage.success("订单已释放，执行单据由后台生成");
+    ElMessage.success(
+      orderType.value === "PURCHASE"
+        ? "采购履约安排已生成"
+        : "订单已释放，执行单据由后台生成"
+    );
+    await Promise.all([load(), loadStats()]);
+  } catch (error) {
+    if (error instanceof Error) ElMessage.error(error.message);
+  } finally {
+    acting.value = "";
+  }
+}
+async function createPurchaseExecution(fulfillment: PurchaseFulfillment) {
+  try {
+    await ElMessageBox.confirm(
+      "将根据采购履约安排生成执行单；此操作不会下发运输。",
+      "生成执行单",
+      { type: "warning" }
+    );
+    acting.value = fulfillment.fulfillmentId;
+    selected.value = await omsApi.createPurchaseExecution(fulfillment);
+    await Promise.all([load(), loadStats()]);
+  } catch (error) {
+    if (error instanceof Error) ElMessage.error(error.message);
+  } finally {
+    acting.value = "";
+  }
+}
+async function startPurchaseExecution(execution: PurchaseExecution) {
+  try {
+    await ElMessageBox.confirm(
+      "开始执行后将正式向 TMS 下发采购运输需求。",
+      "开始执行",
+      { type: "warning" }
+    );
+    acting.value = execution.executionId;
+    selected.value = await omsApi.startPurchaseExecution(execution);
+    await Promise.all([load(), loadStats()]);
+  } catch (error) {
+    if (error instanceof Error) ElMessage.error(error.message);
+  } finally {
+    acting.value = "";
+  }
+}
+async function cancelPurchaseExecution(execution: PurchaseExecution) {
+  try {
+    const result = await ElMessageBox.prompt("请输入取消原因", "取消执行单", {
+      inputValidator: value => Boolean(value?.trim()) || "请填写取消原因",
+      inputType: "textarea"
+    });
+    acting.value = execution.executionId;
+    selected.value = await omsApi.cancelPurchaseExecution(
+      execution,
+      result.value.trim()
+    );
     await Promise.all([load(), loadStats()]);
   } catch (error) {
     if (error instanceof Error) ElMessage.error(error.message);
@@ -136,13 +192,22 @@ async function release(order: OmsOrder) {
   }
 }
 async function cancel(order: OmsOrder) {
+  const remaining =
+    order.status === "RELEASED" || order.status === "FULFILLING";
   try {
-    const result = await ElMessageBox.prompt("请输入取消原因", "取消草稿", {
-      inputValidator: value => Boolean(value?.trim()) || "请填写取消原因",
-      inputType: "textarea"
-    });
+    const result = await ElMessageBox.prompt(
+      remaining
+        ? "将取消未收货的全部剩余数量，已收货部分不受影响；采购执行尚未开始时不会下发运输。请输入取消原因"
+        : "请输入取消原因",
+      remaining ? "取消剩余数量" : "取消草稿",
+      {
+        inputValidator: value => Boolean(value?.trim()) || "请填写取消原因",
+        inputType: "textarea"
+      }
+    );
     acting.value = order.orderId;
     await omsApi.cancel(order, result.value.trim());
+    ElMessage.success(remaining ? "剩余数量已取消" : "订单已取消");
     await Promise.all([load(), loadStats()]);
   } catch (error) {
     if (error instanceof Error) ElMessage.error(error.message);
@@ -331,6 +396,20 @@ watch(
                 >取消</el-button
               >
             </template>
+            <template
+              v-if="
+                orderType === 'PURCHASE' &&
+                (row.status === 'RELEASED' || row.status === 'FULFILLING')
+              "
+            >
+              <el-button
+                link
+                type="danger"
+                :disabled="Boolean(acting)"
+                @click="cancel(row as OmsOrder)"
+                >取消剩余</el-button
+              >
+            </template>
           </template></el-table-column
         >
       </el-table>
@@ -357,6 +436,9 @@ watch(
       v-model="showing"
       :order="selected"
       @refresh="selected && open(selected)"
+      @create-execution="createPurchaseExecution"
+      @start-execution="startPurchaseExecution"
+      @cancel-execution="cancelPurchaseExecution"
     />
   </div>
 </template>
